@@ -51,9 +51,24 @@ service cloud.firestore {
         allow read: if isMember();
         allow write: if isAdminUser();
       }
+      // Kø til planlæggeren (GitHub Actions): admin kan bede om en manuel besked;
+      // robotten (Admin SDK, uden om disse regler) læser og rydder den igen.
+      match /state/notifTracker {
+        allow read: if false;
+        allow write: if isAdminUser();
+      }
       match /rounds/{roundId} {
         allow read: if isMember();
         allow write: if isMember();   // spillere indsender/retter kun deres eget felt (styret i app-koden)
+      }
+
+      // Push-notifikations-tokens: hvert medlem må kun skrive/slette sit EGET token.
+      // Ingen klienter kan læse token-listen — kun scheduler-robotten (Firebase Admin SDK,
+      // som ikke er underlagt disse regler) læser dem for at sende beskeder.
+      match /pushTokens/{token} {
+        allow read: if false;
+        allow write: if isMember() && request.resource.data.uid == request.auth.uid;
+        allow delete: if isMember();
       }
     }
   }

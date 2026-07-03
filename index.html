@@ -17,6 +17,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
 <style>
   :root{
     --board:#0C1B18; --board-2:#102621; --board-line:rgba(243,169,59,.18);
@@ -354,7 +355,11 @@ const metaRef=stateDoc('meta'), discRef=stateDoc('disc'), powerRef=stateDoc('pow
   auctionRef=stateDoc('auction'), paymentsRef=stateDoc('payments'), finesRef=stateDoc('fines'), archiveRef=stateDoc('archive');
 const roundsCol=CLUB.collection('rounds');
 const invitesCol=CLUB.collection('invites');
+const pushTokensCol=CLUB.collection('pushTokens');
 const FV=firebase.firestore.FieldValue;
+const VAPID_KEY="PASTE_VAPID_PUBLIC_KEY_HERE"; // Firebase Console → Project settings → Cloud Messaging → Web configuration
+const messagingSupported=firebase.messaging.isSupported();
+const messaging=messagingSupported?firebase.messaging():null;
 
 /* =================== STATE =================== */
 let S=null;
@@ -1320,14 +1325,19 @@ async function usePower(type,target){
   await saveRoundMerge(r.id, {powers: FV.arrayUnion(decl)}); await saveState(); renderAll();
   toast(POWERS[type].icon+" "+POWERS[type].name+" meldt"+(target?" mod "+nameOf(target):"")+" — afsløres når runden låses.");
 }
-function sendNotif(type){
+async function sendNotif(type){
+  if(!isAdmin())return;
   const r=openRound(); let title,recips;
   if(type==='spil'){ recips=(r&&r.status==='open')?PLAYERS.filter(n=>!r.picks[n]&&!(r.absent||[]).includes(n)):[]; title="Husk at sende dit spil — deadline om 24 timer ⏰"; }
   else if(type==='betal'){ const m=new Date().toISOString().slice(0,7); const pm=S.payments[m]||{}; recips=PLAYERS.filter(n=>!pm['fee_'+n]); title="Husk indbetaling — frist om 24 timer 💰"; }
   else if(type==='lukket'){ recips=PLAYERS; title="Kuponen er lukket — held og lykke 🎟️"; }
   else { recips=PLAYERS; title="Månedsbesked til hele klubben"; }
   if(type!=='maaned' && type!=='lukket' && !recips.length){ toast("🔔 Ingen mangler lige nu — ingen besked sendt."); return; }
-  toast("🔔 Sendt til "+(recips.length===PLAYERS.length?"alle":recips.map(nameOf).join(", "))+":\n\n»"+title+"«");
+  // Selve afsendelsen sker via planlæggeren (GitHub Actions), som tjekker denne kø hvert kvarter.
+  try{
+    await CLUB.collection('state').doc('notifTracker').set({manualRequest:{type, ts:Date.now(), by:S.user}}, {merge:true});
+    toast("🔔 Lagt i kø til "+(recips.length===PLAYERS.length?"alle":recips.map(nameOf).join(", "))+" — sendes som push-notifikation inden for et kvarter:\n\n»"+title+"«");
+  }catch(e){ console.error(e); toast("Kunne ikke lægge beskeden i kø — prøv igen."); }
 }
 function expSection(){
   const me=S.user; const exp=expFor(me); const spins=spinsAvailable(me);
@@ -1725,9 +1735,51 @@ function notifLines(){
   return lines;
 }
 function notifInner(){ return `<div class="paper">${notifLines().map(([t,d])=>`<div class="sub-row"><div><div class="nm" style="font-size:15px">${t}</div><div class="desc">${d}</div></div><span style="font-size:18px">🔔</span></div>`).join('')}</div>`; }
-function notifBody(){
-  return `<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">I den færdige app fyrer disse automatisk via en gratis planlægger. Her vises hvem der lige nu ville få besked:</p></div>${notifInner()}</section>`;
+function pushStatusText(){
+  if(!messagingSupported) return 'Din browser/telefon understøtter desværre ikke web-notifikationer (på iPhone: læg appen på hjemmeskærmen først, så virker det).';
+  if(Notification.permission==='denied') return 'Du har blokeret notifikationer for denne side i din browser — slå dem til under browserens/telefonens indstillinger for at aktivere.';
+  if(myPushToken) return 'Notifikationer er aktiveret på denne enhed.';
+  return 'Notifikationer er ikke aktiveret på denne enhed endnu.';
 }
+function notifBody(){
+  const pushCard=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Push-notifikationer på denne enhed</div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${pushStatusText()}</p>
+    ${myPushToken?`<button class="btn btn-ghost" onclick="disablePush()">Slå fra på denne enhed</button>`:`<button class="btn btn-dark" onclick="enablePush()" ${messagingSupported?'':'disabled'}>🔔 Aktivér notifikationer</button>`}</div>`;
+  return `${pushCard}<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">Disse sendes automatisk som push-notifikationer på tidspunktet nedenfor til dem, der mangler noget. Her vises hvem der lige nu ville få besked:</p></div>${notifInner()}</section>`;
+}
+let myPushToken=null;
+async function enablePush(){
+  if(!messagingSupported){ toast('Din browser/telefon understøtter desværre ikke web-push.'); return; }
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){ toast('Du sagde nej tak til notifikationer i browseren.'); moreView='notif'; renderMore(); return; }
+    const reg=await navigator.serviceWorker.ready;
+    const token=await messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
+    if(!token){ toast('Kunne ikke oprette en notifikations-nøgle — prøv igen.'); return; }
+    myPushToken=token;
+    await pushTokensCol.doc(token).set({token, player:S.user, uid:auth.currentUser.uid, updatedAt:Date.now()});
+    toast('🔔 Notifikationer er aktiveret på denne enhed.');
+    moreView='notif'; renderMore();
+  }catch(e){ console.error(e); toast('Kunne ikke aktivere notifikationer: '+e.message); }
+}
+async function disablePush(){
+  if(!myPushToken)return;
+  try{ await pushTokensCol.doc(myPushToken).delete(); }catch(e){ console.error(e); }
+  myPushToken=null; toast('Notifikationer er slået fra på denne enhed.'); moreView='notif'; renderMore();
+}
+async function refreshPushTokenIfGranted(){
+  if(!messagingSupported || Notification.permission!=='granted') return;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const token=await messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
+    if(token){ myPushToken=token; await pushTokensCol.doc(token).set({token, player:S.user, uid:auth.currentUser.uid, updatedAt:Date.now()}, {merge:true}); }
+  }catch(e){ console.error(e); }
+}
+if(messaging) messaging.onMessage(payload=>{
+  const t=(payload.notification&&payload.notification.title)||'Rona Defence League';
+  const b=(payload.notification&&payload.notification.body)||'';
+  toast('🔔 '+t+(b?('\n'+b):''));
+});
 function rulesBody(){
   return `<div class="rule"><h3><span class="n">01</span>Indskud</h3><p>${fee()} kr om måneden pr. mand — overføres på MobilePay til Magnus (42174259), som holder klubbens fælles pulje. Puljen er bankrollen og bruges sammen én gang om året. (Almindelig overførsel, ikke en MobilePay-box — så undgår vi box-gebyret.) Taksten kan justeres af admin, hvis I bliver enige om det.</p></div>
     <div class="rule"><h3><span class="n">02</span>Runder</h3><p>Vi spiller 1. og 3. lørdag i måneden, og alle indsender ét spil. Næste runde åbner automatisk, så snart den forrige er afgjort — så du kan melde ind, når du er klar. Deadline er kl. 10 om lørdagen. Dit spil skal afvikles i weekenden: kampen må tidligst starte lørdag kl. 12 og skal være slut senest søndag kl. 23.59 — medmindre andet aftales (de andre skal sige god for det).</p></div>
@@ -1847,6 +1899,7 @@ auth.onAuthStateChanged(async user=>{
   await ensureOpenRound();
   if(S.auction&&S.auction.running)startAuctionTimer();
   resetF(); updateWho(); renderAll(); go(currentScreen||'home');
+  refreshPushTokenIfGranted();
 });
 renderLoginMode();
 if(navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(e=>console.error(e));

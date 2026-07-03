@@ -1,0 +1,10 @@
+{
+  "name": "rdl-scheduler",
+  "private": true,
+  "type": "module",
+  "description": "Kører på GitHub Actions og sender web-push-notifikationer til Rona Defence League på faste tidspunkter (deadlines, betalinger, månedslukning).",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "luxon": "^3.5.0"
+  }
+}
