@@ -1,0 +1,25 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "Rona_Defence_League_Projektspecifikation.docx",
+      "oddsklubben-v2.html",
+      "CLAUDE.md"
+    ],
+    "headers": [
+      {
+        "source": "sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ],
+    "rewrites": [
+      { "source": "**", "destination": "/index.html" }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

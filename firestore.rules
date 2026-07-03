@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function myEmail(){ return request.auth.token.email.lower(); }
+    function isSignedIn(){ return request.auth != null; }
+    function myInviteExists(){ return exists(/databases/$(database)/documents/clubs/rona/invites/$(myEmail())); }
+    function myInvite(){ return get(/databases/$(database)/documents/clubs/rona/invites/$(myEmail())).data; }
+    // "Medlem" = logget ind OG har en invite-konto, der er taget i brug (selv har sat sin adgangskode).
+    function isMember(){ return isSignedIn() && myInviteExists() && myInvite().used == true; }
+    function isAdminUser(){ return isMember() && myInvite().isAdmin == true; }
+
+    match /clubs/rona {
+
+      // Invites: hvert medlem må læse/skrive sin egen invite (bruges til selv-registrering
+      // og til at slå spillernavn/admin-status op). Admin må læse/administrere alle invites.
+      match /invites/{email} {
+        allow read: if isSignedIn() && (myEmail() == email || isAdminUser());
+        allow create: if isSignedIn() && myEmail() == email;
+        allow update: if isAdminUser() || (isSignedIn() && myEmail() == email);
+        allow delete: if isAdminUser();
+      }
+
+      // Klubbens delte data — kun de fire indloggede, godkendte medlemmer må læse.
+      // Skriverettigheder matcher appens egne admin-tjek (isAdmin() i index.html).
+      match /state/meta {
+        allow read: if isMember();
+        allow write: if isAdminUser();
+      }
+      match /state/disc {
+        allow read: if isMember();
+        allow write: if isMember();   // VAR-check (power-up) kan fjerne kort for enhver spiller
+      }
+      match /state/power {
+        allow read: if isMember();
+        allow write: if isMember();   // spins/arsenal styres af den enkelte spiller selv
+      }
+      match /state/auction {
+        allow read: if isMember();
+        allow write: if isMember();   // alle byder live; admin styrer opsætning/start i UI
+      }
+      match /state/payments {
+        allow read: if isMember();
+        allow write: if isAdminUser();
+      }
+      match /state/fines {
+        allow read: if isMember();
+        allow write: if isAdminUser();
+      }
+      match /state/archive {
+        allow read: if isMember();
+        allow write: if isAdminUser();
+      }
+      match /rounds/{roundId} {
+        allow read: if isMember();
+        allow write: if isMember();   // spillere indsender/retter kun deres eget felt (styret i app-koden)
+      }
+    }
+  }
+}
