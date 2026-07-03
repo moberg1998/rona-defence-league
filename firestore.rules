@@ -57,6 +57,12 @@ service cloud.firestore {
         allow read: if false;
         allow write: if isAdminUser();
       }
+      // Cache af kommende kampe + odds fra API-Sports — hentet dagligt af scheduler-robotten
+      // (Admin SDK, uden om disse regler). Medlemmer må kun læse, aldrig skrive.
+      match /state/fixturesLive {
+        allow read: if isMember();
+        allow write: if false;
+      }
       match /rounds/{roundId} {
         allow read: if isMember();
         allow write: if isMember();   // spillere indsender/retter kun deres eget felt (styret i app-koden)

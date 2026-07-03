@@ -352,12 +352,13 @@ const db=firebase.firestore();
 const CLUB=db.collection('clubs').doc('rona');
 const stateDoc=name=>CLUB.collection('state').doc(name);
 const metaRef=stateDoc('meta'), discRef=stateDoc('disc'), powerRef=stateDoc('power'),
-  auctionRef=stateDoc('auction'), paymentsRef=stateDoc('payments'), finesRef=stateDoc('fines'), archiveRef=stateDoc('archive');
+  auctionRef=stateDoc('auction'), paymentsRef=stateDoc('payments'), finesRef=stateDoc('fines'), archiveRef=stateDoc('archive'),
+  fixturesLiveRef=stateDoc('fixturesLive');
 const roundsCol=CLUB.collection('rounds');
 const invitesCol=CLUB.collection('invites');
 const pushTokensCol=CLUB.collection('pushTokens');
 const FV=firebase.firestore.FieldValue;
-const VAPID_KEY="PASTE_VAPID_PUBLIC_KEY_HERE"; // Firebase Console → Project settings → Cloud Messaging → Web configuration
+const VAPID_KEY="BIYx8tafJ0gMcQ4FgJObVIgjF9F04hvxj7BndksD8QvVamFjYKt-km5fMF6AUD9QE-RrlEkkAFyobK4M3-Ouwg0";
 const messagingSupported=firebase.messaging.isSupported();
 const messaging=messagingSupported?firebase.messaging():null;
 
@@ -384,7 +385,7 @@ function metaOf(fs){ return {players:fs.players, season:fs.season, monthlyFee:fs
 let unsubList=[];
 function stopSync(){ unsubList.forEach(u=>u()); unsubList=[]; }
 function startSync(){
-  S=freshState(); S.user=MY_NAME;
+  S=freshState(); S.user=MY_NAME; S.fixturesLive={football:[]};
   const fs=freshState();
   const defaults={meta:metaOf(fs), disc:fs.disc, power:fs.power, auction:fs.auction, payments:fs.payments, fines:{list:fs.fines}, archive:{list:fs.archive}};
   return new Promise(resolve=>{
@@ -404,6 +405,12 @@ function startSync(){
     docSync(paymentsRef,'payments', d=>{ S.payments=d||{}; });
     docSync(finesRef,'fines', d=>{ S.fines=(d&&d.list)||[]; S.fines.forEach(f=>{ if(!f.dueMonth) f.dueMonth=upcomingPayMonth(); }); });
     docSync(archiveRef,'archive', d=>{ S.archive=(d&&d.list)||[]; });
+    // Skrivebeskyttet cache af kommende kampe/odds — hentet af scheduler-robotten. Ikke en del af
+    // "pending"-sættet: appen skal ikke vente på den, og findes den ikke endnu, er der bare ingen live-kampe.
+    unsubList.push(fixturesLiveRef.onSnapshot(snap=>{
+      S.fixturesLive = snap.exists ? snap.data() : {football:[]};
+      renderAllSafe();
+    }, err=>console.error(err)));
     unsubList.push(roundsCol.onSnapshot(snap=>{
       S.rounds=snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
       partReady('rounds'); renderAllSafe();
@@ -816,9 +823,34 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
 }
+function liveLeagues(){ return [...new Set(((S.fixturesLive&&S.fixturesLive.football)||[]).map(f=>f.league.name))]; }
+function liveFixturesFor(leagueName){ return ((S.fixturesLive&&S.fixturesLive.football)||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
+function fmtKickoff(iso){ try{ return new Date(iso).toLocaleString('da-DK',{weekday:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}); }catch(e){ return iso; } }
+function liveSectionHTML(){
+  const leagues=liveLeagues();
+  if(!leagues.length) return '';
+  return `<div class="field"><label class="fld">⚽ Kommende kampe (live) — vælg liga</label>
+    <select id="liveLeagueSel">${leagues.map(l=>`<option>${l}</option>`).join('')}</select></div>
+    <div class="results show" id="liveMatchList" style="margin-bottom:14px"></div>`;
+}
+function renderLiveMatchList(leagueName){
+  const box=document.getElementById('liveMatchList'); if(!box)return;
+  const fx=liveFixturesFor(leagueName);
+  if(!fx.length){ box.innerHTML='<div class="mres"><span class="m">Ingen kampe fundet i denne liga lige nu</span></div>'; return; }
+  box.innerHTML=fx.map(f=>`<div class="mres" data-id="${f.id}"><div><div class="t">${f.home} – ${f.away}</div><div class="m">${fmtKickoff(f.date)}</div></div><span class="sp">1X2</span></div>`).join('');
+  box.querySelectorAll('.mres[data-id]').forEach(d=>d.addEventListener('click',()=>{ const item=fx.find(x=>x.id===d.dataset.id); if(item)chooseLiveFixture(item); }));
+}
+function chooseLiveFixture(fx){
+  F.match={ id:fx.id, sport:'Fodbold', home:fx.home, away:fx.away, league:fx.league.name, live:true, liveOdds:fx.odds };
+  F.market="1X2 (Moneyline)"; F.side=null; F.line=""; F.odds="";
+  const inp=document.getElementById('matchSearch'); if(inp)inp.value=fx.home+' – '+fx.away;
+  const box=document.getElementById('matchResults'); if(box){box.classList.remove('show');box.innerHTML='';}
+  renderAfterMatch();
+}
 function renderSubmitForm(me){
   return `<div class="paper pad" id="subForm" style="margin-bottom:14px">
     <div class="admin-note">Dit spil — ${nameOf(me)}</div>
+    ${liveSectionHTML()}
     <div class="field"><label class="fld">Søg kamp (skriv et holdnavn)</label>
       <input type="text" id="matchSearch" placeholder="fx Magdeburg, Frankrig, Astralis…" autocomplete="off">
       <div class="results" id="matchResults"></div></div>
@@ -846,6 +878,8 @@ function useManualMatch(){
   renderAfterMatch();
 }
 function wireSubmitForm(){
+  const liveSel=document.getElementById('liveLeagueSel');
+  if(liveSel){ renderLiveMatchList(liveSel.value); liveSel.addEventListener('change',()=>renderLiveMatchList(liveSel.value)); }
   const inp=document.getElementById('matchSearch'); if(!inp)return;
   inp.addEventListener('input',()=>{
     const q=inp.value.trim().toLowerCase(); const box=document.getElementById('matchResults');
@@ -899,7 +933,15 @@ function renderMkExtra(){
     <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--ink-soft);margin-bottom:12px" id="descPrev"></div>
     <button class="btn btn-dark" id="submitPick">Indsend mit spil</button>`;
   if(isOU){const os=document.getElementById('ouSel'); if(os)os.addEventListener('change',e=>{F.ouUnit=e.target.value||"";upd();});}
-  document.querySelectorAll('#sideSeg button').forEach(b=>b.addEventListener('click',()=>{F.side=b.dataset.v;document.querySelectorAll('#sideSeg button').forEach(x=>x.classList.toggle('active',x===b));upd();}));
+  document.querySelectorAll('#sideSeg button').forEach(b=>b.addEventListener('click',()=>{
+    F.side=b.dataset.v;
+    document.querySelectorAll('#sideSeg button').forEach(x=>x.classList.toggle('active',x===b));
+    if(F.match.liveOdds && F.market==="1X2 (Moneyline)"){
+      const key=({'1':'home','X':'draw','2':'away'})[F.side];
+      if(key && F.match.liveOdds[key]!=null){ F.odds=String(F.match.liveOdds[key]); const oi=document.getElementById('oddsInp'); if(oi)oi.value=F.odds; }
+    }
+    upd();
+  }));
   const sb=document.getElementById('signBtn'); if(sb)sb.addEventListener('click',()=>{const inp=document.getElementById('lineInp');let v=(inp.value||'').trim();if(v.startsWith('-'))v=v.slice(1);else if(v!=='')v='-'+v;else v='-';inp.value=v;F.line=v;upd();});
   const li=document.getElementById('lineInp'); if(li)li.addEventListener('input',e=>{F.line=e.target.value;upd();});
   document.getElementById('oddsInp').addEventListener('input',e=>{F.odds=e.target.value;upd();});
