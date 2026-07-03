@@ -4,7 +4,10 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      ".git/**",
+      ".github/**",
       "**/node_modules/**",
+      "scheduler/**",
       "Rona_Defence_League_Projektspecifikation.docx",
       "oddsklubben-v2.html",
       "CLAUDE.md"
