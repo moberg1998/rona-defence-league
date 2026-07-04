@@ -823,7 +823,7 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
 }
-const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball'};   // udvid her når flere kilder (hockey/CS2) kommer til
+const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey'};   // udvid her når CS2 kommer til
 function liveSports(){ return Object.keys(LIVE_SPORT_LABELS).filter(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).length>0); }
 function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }
 function liveFixturesFor(sportKey,leagueName){ return ((S.fixturesLive&&S.fixturesLive[sportKey])||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
