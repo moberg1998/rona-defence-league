@@ -24,16 +24,20 @@ export function asList(json) {
 
 // Cacher et vilkårligt opslag (fx deltagere eller turneringer for én sport) i Firestore,
 // og genbruger cachen i op til maxAgeDays i stedet for at spørge OddsPapi hver dag.
+// Værdien gemmes som en JSON-STRENG (ikke et Firestore-map/array) — Tennis alene har tusindvis
+// af spillere, og Firestore indekserer hver nøgle i et map automatisk, hvilket ramte fejlen
+// "too many index entries". En streng tæller kun som ét indeks-felt, uanset indhold.
 export async function getCached(cacheRef, key, maxAgeDays, fetcher) {
   const snap = await cacheRef.get();
   const data = snap.exists ? snap.data() : {};
   const entry = data[key];
   const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
   if (entry && Date.now() - entry.updatedAt < maxAgeMs) {
-    return entry.value;
+    try { return JSON.parse(entry.json); }
+    catch (e) { /* ældre cache-format fra før denne rettelse — falder igennem og henter frisk */ }
   }
   const value = await fetcher();
-  await cacheRef.set({ [key]: { value, updatedAt: Date.now() } }, { merge: true });
+  await cacheRef.set({ [key]: { json: JSON.stringify(value), updatedAt: Date.now() } }, { merge: true });
   return value;
 }
 
