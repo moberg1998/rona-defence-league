@@ -16,7 +16,7 @@ service cloud.firestore {
       // og til at slå spillernavn/admin-status op). Admin må læse/administrere alle invites.
       match /invites/{email} {
         allow read: if isSignedIn() && (myEmail() == email || isAdminUser());
-        allow create: if isSignedIn() && myEmail() == email;
+        allow create: if isSignedIn() && (myEmail() == email || isAdminUser());
         allow update: if isAdminUser() || (isSignedIn() && myEmail() == email);
         allow delete: if isAdminUser();
       }
