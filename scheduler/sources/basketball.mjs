@@ -1,0 +1,52 @@
+// Basketball via API-Sports (v1.basketball.api-sports.io).
+// Samme flade kamp-struktur og "game"-parameter til odds som håndbold-modulet.
+// Fulgte ligaer — udvid frit (find liga-id'er via /leagues?search=... med samme nøgle).
+import { TZ, makeApiSportsGet, pickMatchOdds, fixturesForDate } from './shared.mjs';
+import { DateTime } from 'luxon';
+
+const BASE = 'https://v1.basketball.api-sports.io';
+const LEAGUES = [
+  { id: 12, name: 'NBA' },
+  { id: 120, name: 'Euroleague' },
+  { id: 197, name: 'EuroBasket' },
+  { id: 201, name: 'FIBA Europe Cup' },
+  { id: 281, name: 'World Cup' },
+];
+
+export async function fetchBasketball(apiKey) {
+  const apiGet = makeApiSportsGet(apiKey);
+  const leagueIds = new Set(LEAGUES.map(l => l.id));
+  const leagueName = id => LEAGUES.find(l => l.id === id)?.name || String(id);
+
+  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
+  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+
+  const [resToday, resTomorrow] = await Promise.all([
+    fixturesForDate(apiGet, BASE, '/games', today, 'Basketball'),
+    fixturesForDate(apiGet, BASE, '/games', tomorrow, 'Basketball'),
+  ]);
+  if (!resToday.ok && !resTomorrow.ok) throw new Error(`Basketball: kunne hverken hente ${today} eller ${tomorrow}.`);
+
+  const relevant = [...resToday.data, ...resTomorrow.data].filter(g => leagueIds.has(g.league.id));
+  console.log(`Basketball: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
+
+  const out = [];
+  for (const g of relevant) {
+    let odds = null;
+    try {
+      const oddsResp = await apiGet(BASE, '/odds', { game: g.id });
+      odds = pickMatchOdds(oddsResp, ['Match Winner', 'Home/Away']);
+    } catch (e) {
+      console.warn('Basketball: odds-opslag fejlede for', g.id, e.message);
+    }
+    out.push({
+      id: 'b' + g.id,
+      date: g.date,
+      league: { id: g.league.id, name: leagueName(g.league.id) },
+      home: g.teams.home.name,
+      away: g.teams.away.name,
+      odds, // basketball har normalt ingen uafgjort — draw er typisk null her
+    });
+  }
+  return out;
+}

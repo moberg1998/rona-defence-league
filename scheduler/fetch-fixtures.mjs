@@ -10,6 +10,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { fetchFootball } from './sources/football.mjs';
 import { fetchHandball } from './sources/handball.mjs';
+import { fetchBasketball } from './sources/basketball.mjs';
 
 const svcJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 const apiSportsKey = process.env.API_SPORTS_KEY;
@@ -24,7 +25,7 @@ const fixturesLiveRef = CLUB.collection('state').doc('fixturesLive');
 const SOURCES = [
   { key: 'football', label: 'Fodbold', fetch: () => fetchFootball(apiSportsKey) },
   { key: 'handball', label: 'Håndbold', fetch: () => fetchHandball(apiSportsKey) },
-  // Kommende: { key: 'basketball', label: 'Basketball', fetch: () => fetchBasketball(apiSportsKey) },
+  { key: 'basketball', label: 'Basketball', fetch: () => fetchBasketball(apiSportsKey) },
   // Kommende: { key: 'hockey', label: 'Ishockey', fetch: () => fetchHockey(apiSportsKey) },
   // Kommende: { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(process.env.ODDSPAPI_KEY) },
 ];
