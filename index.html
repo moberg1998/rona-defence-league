@@ -522,14 +522,17 @@ function monthStats(rs){
 function monthAdj(monthKey, rawPts){
   const adj={}; PLAYERS.forEach(n=>adj[n]=0);
   const rounds=S.rounds.filter(r=>r.date.slice(0,7)===monthKey && r.status!=='open');
-  const shield={}; PLAYERS.forEach(n=>shield[n]=0);
-  rounds.forEach(r=>(r.powers||[]).forEach(p=>{ if(p.type==='skjold')shield[p.by]=(shield[p.by]||0)+1; }));
-  rounds.forEach(r=>(r.powers||[]).forEach(p=>{
-    if(p.type==='boost') adj[p.by]+=2;
-    else if(p.type==='sabotage'){ if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null)adj[p.target]-=2; }
-    else if(p.type==='tyveri'){ if(!(rawPts&&rawPts[p.target]>0))return;   // offeret har 0 point — intet at stjæle, too bad
-      if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null){adj[p.target]-=1;adj[p.by]+=1;} }
-  }));
+  rounds.forEach(r=>{
+    // Skjold gælder kun angreb meldt i SAMME runde — derfor nulstilles det pr. runde, ikke pr. måned.
+    const shield={}; PLAYERS.forEach(n=>shield[n]=0);
+    (r.powers||[]).forEach(p=>{ if(p.type==='skjold')shield[p.by]=(shield[p.by]||0)+1; });
+    (r.powers||[]).forEach(p=>{
+      if(p.type==='boost') adj[p.by]+=2;
+      else if(p.type==='sabotage'){ if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null)adj[p.target]-=2; }
+      else if(p.type==='tyveri'){ if(!(rawPts&&rawPts[p.target]>0))return;   // offeret har 0 point — intet at stjæle, too bad
+        if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null){adj[p.target]-=1;adj[p.by]+=1;} }
+    });
+  });
   return adj;
 }
 function monthFrikendt(monthKey){
