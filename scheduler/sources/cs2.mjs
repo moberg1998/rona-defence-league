@@ -1,108 +1,65 @@
-// CS2 (Counter-Strike 2) via OddsPapi (https://oddspapi.io) — ikke API-Sports.
-// Bekræftet ved en rigtig kørsel (log delt af Magnus) og opslag i OddsPapis dokumentation:
-//  - Base-URL: https://api.oddspapi.io, nøglen sendes som query-parameter "apiKey"
-//  - Fixtures: GET /v4/fixtures?sportId=17&from=YYYY-MM-DD&to=YYYY-MM-DD&hasOdds=true (17 = CS2)
-//    Fixture-objektet har IKKE holdnavne direkte — kun fixtureId, participant1Id, participant2Id,
-//    tournamentId, startTime. Navne slås op separat:
-//  - GET /v4/participants?sportId=17 → { "<id>": "Holdnavn", ... } (ét kald, hele sportens deltagere)
-//  - GET /v4/tournaments?sportId=17 → array af { tournamentId, tournamentName, ... }
-//  - Odds pr. kamp: GET /v4/odds?fixtureId=<id> — dybt indlejret struktur:
-//    bookmakerOdds[bookmaker].markets[marketId].outcomes[outcomeId].players[playerId].price.
-//    Hvilket marketId der er "kampvinder" fremgår ikke af dokumentationen, så vi gætter forsigtigt
-//    (det første 2-udfalds marked) — rammer gættet forbi, vises kampen bare uden odds i appen.
-//  - Rate-limits ifølge dokumentationen: participants/tournaments ~1000ms cooldown, odds ~500ms.
+// CS2 (Counter-Strike 2) via OddsPapi. Se oddspapi-shared.mjs for baggrund om det stramme,
+// KONTO-BREDE månedlige loft (~250 opslag/md, delt med Tennis) og hvordan vi holder os under det:
+//  - Kun i dag + i morgen (samme weekend-fokus som API-Sports-kilderne), ikke en hel uge.
+//  - Deltager-/turneringsnavne caches i Firestore og genhentes kun hver ~6. dag.
+//  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag — resten vises
+//    stadig i appen, bare uden auto-udfyldte odds (spilleren taster selv).
+//  - Begrænset til større turneringer (BLAST/IEM/ESL Pro League/PGL/Major/EPL), så listen er
+//    relevant og ikke drukner i alle verdens småturneringer.
 import { TZ } from './shared.mjs';
+import { oddsPapiGet, asList, getCached, extractTwoWayOdds } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
-const BASE = 'https://api.oddspapi.io';
 const CS2_SPORT_ID = 17;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const MAX_ODDS_LOOKUPS = 8;
+const MAJOR_KEYWORDS = /blast|iem|esl pro league|pgl|major|epl/i;
 
-async function apiGet(apiKey, path, params) {
-  const url = new URL(BASE + path);
-  url.searchParams.set('apiKey', apiKey);
-  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));
-  const res = await fetch(url);
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json).slice(0, 300)}`);
-  }
-  return json;
-}
-
-function asList(json) {
-  if (Array.isArray(json)) return json;
-  return json?.data || json?.fixtures || json?.response || json?.results || [];
-}
-
-// Leder efter et 2-udfalds "kampvinder"-marked i det indlejrede odds-svar. Se kommentaren øverst —
-// det er et forsigtigt gæt, ikke en bekræftet markedstype. Returnerer null hvis intet matcher,
-// hvorefter kampen vises i appen uden odds (spilleren taster selv), i stedet for at fejle.
-function extractTwoWayOdds(oddsJson) {
-  try {
-    const bookmakerOdds = oddsJson?.bookmakerOdds || oddsJson?.odds || {};
-    for (const bmName of Object.keys(bookmakerOdds)) {
-      const markets = bookmakerOdds[bmName]?.markets || {};
-      for (const marketId of Object.keys(markets)) {
-        const outcomes = markets[marketId]?.outcomes || {};
-        const outcomeIds = Object.keys(outcomes);
-        if (outcomeIds.length !== 2) continue;
-        const priceOf = oid => {
-          const players = outcomes[oid]?.players || {};
-          const first = Object.values(players)[0];
-          return first?.price != null ? parseFloat(first.price) : null;
-        };
-        const home = priceOf(outcomeIds[0]), away = priceOf(outcomeIds[1]);
-        if (home != null && away != null) return { home, draw: null, away };
-      }
-    }
-  } catch (e) {
-    console.warn('CS2: kunne ikke tolke odds-svaret:', e.message);
-  }
-  return null;
-}
-
-export async function fetchCS2(apiKey) {
+export async function fetchCS2(apiKey, cacheRef) {
   if (!apiKey) throw new Error('Mangler ODDSPAPI_KEY.');
 
   const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const weekAhead = DateTime.now().setZone(TZ).plus({ days: 7 }).toFormat('yyyy-MM-dd');
+  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-  const fixturesJson = await apiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: weekAhead, hasOdds: true });
-  const fixtures = asList(fixturesJson);
-  console.log(`CS2: ${fixtures.length} kamp(e) fundet (${today} → ${weekAhead}).`);
+  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: tomorrow, hasOdds: true });
+  let fixtures = asList(fixturesJson);
+  console.log(`CS2: ${fixtures.length} kamp(e) fundet (${today} → ${tomorrow}), før turneringsfilter.`);
   if (!fixtures.length) return [];
 
-  await sleep(1100);
-  const participantsMap = await apiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID });
-
-  await sleep(1100);
-  const tournamentsList = asList(await apiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID }));
+  const participantsMap = await getCached(cacheRef, 'cs2_participants', 6, () => oddsPapiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID }));
+  const tournamentsList = await getCached(cacheRef, 'cs2_tournaments', 6, async () => asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID })));
+  const majorTournamentIds = new Set(tournamentsList.filter(t => MAJOR_KEYWORDS.test(t.tournamentName || '')).map(t => t.tournamentId));
   const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
 
+  if (majorTournamentIds.size) fixtures = fixtures.filter(fx => majorTournamentIds.has(fx.tournamentId));
+  fixtures.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  console.log(`CS2: ${fixtures.length} kamp(e) efter turneringsfilter (store turneringer).`);
+
   const out = [];
+  let oddsLookups = 0;
   for (const fx of fixtures) {
     const id = fx.fixtureId || fx.id;
     const home = participantsMap?.[fx.participant1Id] || fx.home?.name;
     const away = participantsMap?.[fx.participant2Id] || fx.away?.name;
-    const date = fx.startTime || fx.date || fx.commenceTime;
-    const league = tournamentName(fx.tournamentId) || fx.tournament?.name || 'CS2';
+    const date = fx.startTime || fx.date;
+    const league = tournamentName(fx.tournamentId) || 'CS2';
     if (!id || !home || !away || !date) {
       console.warn('CS2: sprang en kamp over (mangler felt):', JSON.stringify(fx).slice(0, 300));
       continue;
     }
 
     let odds = null;
-    try {
-      await sleep(600);
-      const oddsJson = await apiGet(apiKey, '/v4/odds', { fixtureId: id });
-      odds = extractTwoWayOdds(oddsJson);
-      if (!odds) console.warn('CS2: intet genkendeligt odds-marked for', id, '— rå svar:', JSON.stringify(oddsJson).slice(0, 500));
-    } catch (e) {
-      console.warn('CS2: odds-opslag fejlede for', id, e.message);
+    if (oddsLookups < MAX_ODDS_LOOKUPS) {
+      try {
+        const oddsJson = await oddsPapiGet(apiKey, '/v4/odds', { fixtureId: id });
+        odds = extractTwoWayOdds(oddsJson);
+        oddsLookups++;
+      } catch (e) {
+        console.warn('CS2: odds-opslag fejlede for', id, e.message);
+      }
     }
 
     out.push({ id: 'c' + id, date, league: { id: CS2_SPORT_ID, name: league }, home, away, odds });
   }
+  console.log(`CS2: hentede odds for ${oddsLookups} af ${out.length} kamp(e) (loft: ${MAX_ODDS_LOOKUPS}).`);
   return out;
 }

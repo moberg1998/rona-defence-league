@@ -1,0 +1,77 @@
+// Tennis (ATP/WTA + Grand Slams) via OddsPapi — IKKE API-Sports (tennis er ikke inkluderet der).
+// Samme sparsommelige strategi som cs2.mjs, da de deler den samme kontobrede månedlige grænse:
+//  - Kun i dag + i morgen.
+//  - sportId for tennis er ikke dokumenteret et fast sted, så den slås op via /v4/sports og caches.
+//  - Deltager-/turneringsnavne caches i Firestore, genhentes kun hver ~6. dag.
+//  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag.
+//  - Begrænset til ATP/WTA hovedturen + Grand Slams — IKKE ITF/Challenger/juniorer/qualifiers,
+//    som ellers ville oversvømme både listen og kvoten (tennis har MANGE kampe dagligt).
+import { TZ } from './shared.mjs';
+import { oddsPapiGet, asList, getCached, extractTwoWayOdds } from './oddspapi-shared.mjs';
+import { DateTime } from 'luxon';
+
+const MAX_ODDS_LOOKUPS = 8;
+const INCLUDE_KEYWORDS = /\batp\b|\bwta\b|grand slam|australian open|roland garros|french open|wimbledon|us open/i;
+const EXCLUDE_KEYWORDS = /itf|challenger|qualif|juniors?|boys|girls|exhibition|legends|seniors|wheelchair|doubles/i;
+
+async function resolveTennisSportId(apiKey, cacheRef) {
+  const sports = await getCached(cacheRef, 'sports_list', 30, async () => asList(await oddsPapiGet(apiKey, '/v4/sports', {})));
+  const found = sports.find(s => /tennis/i.test(s.sportName || s.slug || ''));
+  if (!found) throw new Error('Kunne ikke finde "tennis" i /v4/sports-listen.');
+  return found.sportId;
+}
+
+export async function fetchTennis(apiKey, cacheRef) {
+  if (!apiKey) throw new Error('Mangler ODDSPAPI_KEY.');
+
+  const sportId = await resolveTennisSportId(apiKey, cacheRef);
+  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
+  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+
+  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId, from: today, to: tomorrow, hasOdds: true });
+  let fixtures = asList(fixturesJson);
+  console.log(`Tennis: ${fixtures.length} kamp(e) fundet (${today} → ${tomorrow}), før turneringsfilter.`);
+  if (!fixtures.length) return [];
+
+  const participantsMap = await getCached(cacheRef, 'tennis_participants', 6, async () => oddsPapiGet(apiKey, '/v4/participants', { sportId }));
+  const tournamentsList = await getCached(cacheRef, 'tennis_tournaments', 6, async () => asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId })));
+  const allowedTournamentIds = new Set(
+    tournamentsList
+      .filter(t => INCLUDE_KEYWORDS.test(t.tournamentName || '') && !EXCLUDE_KEYWORDS.test(t.tournamentName || ''))
+      .map(t => t.tournamentId)
+  );
+  const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
+
+  if (allowedTournamentIds.size) fixtures = fixtures.filter(fx => allowedTournamentIds.has(fx.tournamentId));
+  fixtures.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  console.log(`Tennis: ${fixtures.length} kamp(e) efter ATP/WTA/Grand Slam-filter.`);
+
+  const out = [];
+  let oddsLookups = 0;
+  for (const fx of fixtures) {
+    const id = fx.fixtureId || fx.id;
+    const home = participantsMap?.[fx.participant1Id] || fx.home?.name;
+    const away = participantsMap?.[fx.participant2Id] || fx.away?.name;
+    const date = fx.startTime || fx.date;
+    const league = tournamentName(fx.tournamentId) || 'Tennis';
+    if (!id || !home || !away || !date) {
+      console.warn('Tennis: sprang en kamp over (mangler felt):', JSON.stringify(fx).slice(0, 300));
+      continue;
+    }
+
+    let odds = null;
+    if (oddsLookups < MAX_ODDS_LOOKUPS) {
+      try {
+        const oddsJson = await oddsPapiGet(apiKey, '/v4/odds', { fixtureId: id });
+        odds = extractTwoWayOdds(oddsJson);
+        oddsLookups++;
+      } catch (e) {
+        console.warn('Tennis: odds-opslag fejlede for', id, e.message);
+      }
+    }
+
+    out.push({ id: 't' + id, date, league: { id: sportId, name: league }, home, away, odds });
+  }
+  console.log(`Tennis: hentede odds for ${oddsLookups} af ${out.length} kamp(e) (loft: ${MAX_ODDS_LOOKUPS}).`);
+  return out;
+}

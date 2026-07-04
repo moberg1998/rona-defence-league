@@ -298,7 +298,7 @@ const POWERS={
   joker:{name:"Joker",icon:"🃏",desc:"Vælg selv hvilken power-up den bliver til",need:"self"}
 };
 const POWER_ORDER=["boost","sabotage","tyveri","skjold","varcheck","frikendelse","joker"];
-const EXP_PER_SPIN=100;
+const EXP_PER_SPIN=50;
 const WHEEL=[["varcheck",20],["tyveri",20],["skjold",20],["boost",12],["sabotage",12],["joker",8],["frikendelse",8]];
 
 const MARKETS={
@@ -813,8 +813,8 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
 }
-const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey', cs2:'Esport'};
-const LIVE_DEFAULT_MARKET={football:'1X2 (Moneyline)', handball:'1X2 (Moneyline)', basketball:'1X2 (Moneyline)', hockey:'1X2 (Moneyline)', cs2:'Kampvinder'};
+const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey', cs2:'Esport', tennis:'Tennis'};
+const LIVE_DEFAULT_MARKET={football:'1X2 (Moneyline)', handball:'1X2 (Moneyline)', basketball:'1X2 (Moneyline)', hockey:'1X2 (Moneyline)', cs2:'Kampvinder', tennis:'Kampvinder'};
 function liveSports(){ return Object.keys(LIVE_SPORT_LABELS).filter(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).length>0); }
 function allLiveFixturesFlat(){ const out=[]; liveSports().forEach(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).forEach(f=>out.push({...f, sportKey:k}))); return out; }
 function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }

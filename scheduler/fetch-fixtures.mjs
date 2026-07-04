@@ -13,6 +13,7 @@ import { fetchHandball } from './sources/handball.mjs';
 import { fetchBasketball } from './sources/basketball.mjs';
 import { fetchHockey } from './sources/hockey.mjs';
 import { fetchCS2 } from './sources/cs2.mjs';
+import { fetchTennis } from './sources/tennis.mjs';
 
 const svcJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 const apiSportsKey = process.env.API_SPORTS_KEY;
@@ -24,13 +25,17 @@ initializeApp({ credential: cert(JSON.parse(svcJson)) });
 const db = getFirestore();
 const CLUB = db.collection('clubs').doc('rona');
 const fixturesLiveRef = CLUB.collection('state').doc('fixturesLive');
+// Cache af navne/id-opslag for OddsPapi-kilder (CS2, Tennis), så vi ikke spørger dagligt om ting,
+// der sjældent ændrer sig — se oddspapi-shared.mjs.
+const oddspapiCacheRef = CLUB.collection('state').doc('oddspapiCache');
 
 const SOURCES = [
   { key: 'football', label: 'Fodbold', fetch: () => fetchFootball(apiSportsKey) },
   { key: 'handball', label: 'Håndbold', fetch: () => fetchHandball(apiSportsKey) },
   { key: 'basketball', label: 'Basketball', fetch: () => fetchBasketball(apiSportsKey) },
   { key: 'hockey', label: 'Ishockey', fetch: () => fetchHockey(apiSportsKey) },
-  { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(oddsPapiKey) },
+  { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(oddsPapiKey, oddspapiCacheRef) },
+  { key: 'tennis', label: 'Tennis', fetch: () => fetchTennis(oddsPapiKey, oddspapiCacheRef) },
 ];
 
 async function main() {

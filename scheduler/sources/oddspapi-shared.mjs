@@ -1,0 +1,66 @@
+// Delt hjælpekode for alle OddsPapi-kilder (CS2, Tennis, …). OddsPapis gratis plan har et
+// stramt MÅNEDLIGT loft (~250 opslag/md i alt for hele kontoen — delt mellem ALLE sportsgrene,
+// ikke pr. sport som hos API-Sports). Derfor:
+//  - Navne (deltagere/turneringer) caches i Firestore og genhentes kun sjældent (se getCachedMap).
+//  - Odds hentes KUN for et begrænset antal kampe pr. køre (se capOddsLookups i hver kilde-fil),
+//    prioriteret efter hvilke kampe der starter først. Resten af kampene vises stadig i appen,
+//    bare uden auto-udfyldte odds — spilleren taster selv, ligesom den almindelige fallback.
+const BASE = 'https://api.oddspapi.io';
+
+export async function oddsPapiGet(apiKey, path, params) {
+  const url = new URL(BASE + path);
+  url.searchParams.set('apiKey', apiKey);
+  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+  const res = await fetch(url);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json).slice(0, 300)}`);
+  return json;
+}
+
+export function asList(json) {
+  if (Array.isArray(json)) return json;
+  return json?.data || json?.fixtures || json?.response || json?.results || [];
+}
+
+// Cacher et vilkårligt opslag (fx deltagere eller turneringer for én sport) i Firestore,
+// og genbruger cachen i op til maxAgeDays i stedet for at spørge OddsPapi hver dag.
+export async function getCached(cacheRef, key, maxAgeDays, fetcher) {
+  const snap = await cacheRef.get();
+  const data = snap.exists ? snap.data() : {};
+  const entry = data[key];
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  if (entry && Date.now() - entry.updatedAt < maxAgeMs) {
+    return entry.value;
+  }
+  const value = await fetcher();
+  await cacheRef.set({ [key]: { value, updatedAt: Date.now() } }, { merge: true });
+  return value;
+}
+
+// Leder efter et 2-udfalds "vinder"-marked i OddsPapis indlejrede odds-struktur:
+// bookmakerOdds[bookmaker].markets[marketId].outcomes[outcomeId].players[playerId].price.
+// Se scheduler/sources/cs2.mjs for baggrunden — det er et forsigtigt gæt, ikke en bekræftet
+// markedstype, så returnerer den null, viser appen bare kampen uden odds.
+export function extractTwoWayOdds(oddsJson) {
+  try {
+    const bookmakerOdds = oddsJson?.bookmakerOdds || oddsJson?.odds || {};
+    for (const bmName of Object.keys(bookmakerOdds)) {
+      const markets = bookmakerOdds[bmName]?.markets || {};
+      for (const marketId of Object.keys(markets)) {
+        const outcomes = markets[marketId]?.outcomes || {};
+        const outcomeIds = Object.keys(outcomes);
+        if (outcomeIds.length !== 2) continue;
+        const priceOf = oid => {
+          const players = outcomes[oid]?.players || {};
+          const first = Object.values(players)[0];
+          return first?.price != null ? parseFloat(first.price) : null;
+        };
+        const home = priceOf(outcomeIds[0]), away = priceOf(outcomeIds[1]);
+        if (home != null && away != null) return { home, draw: null, away };
+      }
+    }
+  } catch (e) {
+    console.warn('OddsPapi: kunne ikke tolke odds-svaret:', e.message);
+  }
+  return null;
+}

@@ -63,6 +63,11 @@ service cloud.firestore {
         allow read: if isMember();
         allow write: if false;
       }
+      // Intern cache af navne-/id-opslag for OddsPapi-kilder — kun scheduler-robotten rører den.
+      match /state/oddspapiCache {
+        allow read: if false;
+        allow write: if false;
+      }
       match /rounds/{roundId} {
         allow read: if isMember();
         allow write: if isMember();   // spillere indsender/retter kun deres eget felt (styret i app-koden)
