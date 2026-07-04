@@ -10,6 +10,7 @@ const LEAGUES = [
   { id: 12, name: 'Metal Ligaen' },
   { id: 111, name: 'World Championship' },
 ];
+const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchHockey(apiKey) {
   const apiGet = makeApiSportsGet(apiKey);
@@ -26,16 +27,21 @@ export async function fetchHockey(apiKey) {
   if (!resToday.ok && !resTomorrow.ok) throw new Error(`Ishockey: kunne hverken hente ${today} eller ${tomorrow}.`);
 
   const relevant = [...resToday.data, ...resTomorrow.data].filter(g => leagueIds.has(g.league.id));
+  relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
   console.log(`Ishockey: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
 
   const out = [];
+  let oddsLookups = 0;
   for (const g of relevant) {
     let odds = null;
-    try {
-      const oddsResp = await apiGet(BASE, '/odds', { game: g.id });
-      odds = pickMatchOdds(oddsResp, ['Match Winner', 'Home/Away']);
-    } catch (e) {
-      console.warn('Ishockey: odds-opslag fejlede for', g.id, e.message);
+    if (oddsLookups < MAX_ODDS_LOOKUPS) {
+      try {
+        const oddsResp = await apiGet(BASE, '/odds', { game: g.id });
+        odds = pickMatchOdds(oddsResp, ['Match Winner', 'Home/Away']);
+        oddsLookups++;
+      } catch (e) {
+        console.warn('Ishockey: odds-opslag fejlede for', g.id, e.message);
+      }
     }
     out.push({
       id: 'i' + g.id,
@@ -46,5 +52,6 @@ export async function fetchHockey(apiKey) {
       odds, // Metal Ligaen har typisk ingen bookmaker-odds — vises så uden, og du taster selv
     });
   }
+  console.log(`Ishockey: hentede odds for ${oddsLookups} af ${out.length} kamp(e) (loft: ${MAX_ODDS_LOOKUPS}).`);
   return out;
 }

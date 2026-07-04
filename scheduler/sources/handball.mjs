@@ -18,6 +18,7 @@ const LEAGUES = [
   { id: 177, name: 'European Championship' },
   { id: 153, name: 'World Championship' },
 ];
+const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchHandball(apiKey) {
   const apiGet = makeApiSportsGet(apiKey);
@@ -34,16 +35,21 @@ export async function fetchHandball(apiKey) {
   if (!resToday.ok && !resTomorrow.ok) throw new Error(`Håndbold: kunne hverken hente ${today} eller ${tomorrow}.`);
 
   const relevant = [...resToday.data, ...resTomorrow.data].filter(g => leagueIds.has(g.league.id));
+  relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
   console.log(`Håndbold: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
 
   const out = [];
+  let oddsLookups = 0;
   for (const g of relevant) {
     let odds = null;
-    try {
-      const oddsResp = await apiGet(BASE, '/odds', { game: g.id });
-      odds = pickMatchOdds(oddsResp, ['Match Winner', 'Home/Away']);
-    } catch (e) {
-      console.warn('Håndbold: odds-opslag fejlede for', g.id, e.message);
+    if (oddsLookups < MAX_ODDS_LOOKUPS) {
+      try {
+        const oddsResp = await apiGet(BASE, '/odds', { game: g.id });
+        odds = pickMatchOdds(oddsResp, ['Match Winner', 'Home/Away']);
+        oddsLookups++;
+      } catch (e) {
+        console.warn('Håndbold: odds-opslag fejlede for', g.id, e.message);
+      }
     }
     out.push({
       id: 'h' + g.id,
@@ -54,5 +60,6 @@ export async function fetchHandball(apiKey) {
       odds, // ofte null for mindre ligaer — appen viser kampen og lader dig taste odds selv
     });
   }
+  console.log(`Håndbold: hentede odds for ${oddsLookups} af ${out.length} kamp(e) (loft: ${MAX_ODDS_LOOKUPS}).`);
   return out;
 }

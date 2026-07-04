@@ -7,7 +7,7 @@
 //  - Begrænset til ATP/WTA hovedturen + Grand Slams — IKKE ITF/Challenger/juniorer/qualifiers,
 //    som ellers ville oversvømme både listen og kvoten (tennis har MANGE kampe dagligt).
 import { TZ } from './shared.mjs';
-import { oddsPapiGet, asList, getCached, extractTwoWayOdds } from './oddspapi-shared.mjs';
+import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
 const MAX_ODDS_LOOKUPS = 8;
@@ -34,7 +34,7 @@ export async function fetchTennis(apiKey, cacheRef) {
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'tennis_participants', 6, async () => oddsPapiGet(apiKey, '/v4/participants', { sportId }));
-  const tournamentsList = await getCached(cacheRef, 'tennis_tournaments', 6, async () => asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId })));
+  const tournamentsList = await getCached(cacheRef, 'tennis_tournaments', 6, async () => slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId }))));
   const allowedTournamentIds = new Set(
     tournamentsList
       .filter(t => INCLUDE_KEYWORDS.test(t.tournamentName || '') && !EXCLUDE_KEYWORDS.test(t.tournamentName || ''))

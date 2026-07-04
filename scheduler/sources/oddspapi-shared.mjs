@@ -22,6 +22,14 @@ export function asList(json) {
   return json?.data || json?.fixtures || json?.response || json?.results || [];
 }
 
+// Turneringslisten fra OddsPapi indeholder mange felter (slug, kategori, kampantal osv.) for
+// ALLE turneringer i sporten (fx tusindvis for tennis: ATP/WTA/Challenger/ITF/juniorer verden
+// over). Vi bruger kun id+navn, så vi beskærer til det før caching — ellers kan den samlede
+// JSON blive for stor til ét Firestore-dokument.
+export function slimTournaments(list) {
+  return (list || []).map(t => ({ tournamentId: t.tournamentId, tournamentName: t.tournamentName }));
+}
+
 // Cacher et vilkårligt opslag (fx deltagere eller turneringer for én sport) i Firestore,
 // og genbruger cachen i op til maxAgeDays i stedet for at spørge OddsPapi hver dag.
 // Værdien gemmes som en JSON-STRENG (ikke et Firestore-map/array) — Tennis alene har tusindvis
@@ -37,7 +45,14 @@ export async function getCached(cacheRef, key, maxAgeDays, fetcher) {
     catch (e) { /* ældre cache-format fra før denne rettelse — falder igennem og henter frisk */ }
   }
   const value = await fetcher();
-  await cacheRef.set({ [key]: { json: JSON.stringify(value), updatedAt: Date.now() } }, { merge: true });
+  try {
+    await cacheRef.set({ [key]: { json: JSON.stringify(value), updatedAt: Date.now() } }, { merge: true });
+  } catch (e) {
+    // Kunne ikke caches (fx for stort til ét Firestore-dokument) — fortsæt alligevel med den
+    // friskt hentede værdi, bare uden at gemme den til næste gang. Ingen grund til at fejle
+    // hele kørslen for en cache-optimering, der ikke lykkedes.
+    console.warn(`OddsPapi: kunne ikke cache "${key}" (bruger værdien uden at gemme):`, e.message);
+  }
   return value;
 }
 

@@ -7,7 +7,7 @@
 //  - Begrænset til større turneringer (BLAST/IEM/ESL Pro League/PGL/Major/EPL), så listen er
 //    relevant og ikke drukner i alle verdens småturneringer.
 import { TZ } from './shared.mjs';
-import { oddsPapiGet, asList, getCached, extractTwoWayOdds } from './oddspapi-shared.mjs';
+import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
 const CS2_SPORT_ID = 17;
@@ -26,7 +26,7 @@ export async function fetchCS2(apiKey, cacheRef) {
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'cs2_participants', 6, () => oddsPapiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID }));
-  const tournamentsList = await getCached(cacheRef, 'cs2_tournaments', 6, async () => asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID })));
+  const tournamentsList = await getCached(cacheRef, 'cs2_tournaments', 6, async () => slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID }))));
   const majorTournamentIds = new Set(tournamentsList.filter(t => MAJOR_KEYWORDS.test(t.tournamentName || '')).map(t => t.tournamentId));
   const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
 
