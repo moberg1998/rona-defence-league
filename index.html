@@ -323,19 +323,6 @@ const BETTYPE={"1X2 (Moneyline)":"1X2 (Moneyline)","Dobbeltchance":"Dobbeltchanc
  "Begge hold scorer":"Begge hold scorer","Asian handicap":"Asian handicap",
  "Europæisk handicap":"Europæisk handicap","Handicap":"Europæisk handicap","Kampvinder":"1X2 (Moneyline)","Map-vinder":"Maps","Andet (skriv selv)":"Andet"};
 
-// simulated fixtures (in a real app these come live from the sports APIs)
-const FIXTURES=[
- {id:"f1",sport:"Fodbold",home:"Frankrig",away:"Senegal",league:"VM"},
- {id:"f2",sport:"Fodbold",home:"Brøndby",away:"FCK",league:"Superliga"},
- {id:"f3",sport:"Fodbold",home:"Real Madrid",away:"Barcelona",league:"La Liga"},
- {id:"f4",sport:"Fodbold",home:"Arsenal",away:"Chelsea",league:"Premier League"},
- {id:"h1",sport:"Håndbold",home:"Magdeburg",away:"Kiel",league:"Bundesliga"},
- {id:"h2",sport:"Håndbold",home:"Aalborg",away:"GOG",league:"HTH Ligaen"},
- {id:"t1",sport:"Tennis",home:"Alcaraz",away:"Sinner",league:"ATP"},
- {id:"b1",sport:"Basketball",home:"Lakers",away:"Celtics",league:"NBA"},
- {id:"i1",sport:"Ishockey",home:"Rungsted",away:"Frederikshavn",league:"Metal Ligaen"},
- {id:"e1",sport:"Esport",home:"Astralis",away:"NAVI",league:"CS Major"},
-];
 
 /* =================== FIREBASE =================== */
 const firebaseConfig = {
@@ -829,6 +816,7 @@ function renderRound(){
 const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey', cs2:'Esport'};
 const LIVE_DEFAULT_MARKET={football:'1X2 (Moneyline)', handball:'1X2 (Moneyline)', basketball:'1X2 (Moneyline)', hockey:'1X2 (Moneyline)', cs2:'Kampvinder'};
 function liveSports(){ return Object.keys(LIVE_SPORT_LABELS).filter(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).length>0); }
+function allLiveFixturesFlat(){ const out=[]; liveSports().forEach(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).forEach(f=>out.push({...f, sportKey:k}))); return out; }
 function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }
 function liveFixturesFor(sportKey,leagueName){ return ((S.fixturesLive&&S.fixturesLive[sportKey])||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
 function fmtKickoff(iso){ try{ return new Date(iso).toLocaleString('da-DK',{weekday:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}); }catch(e){ return iso; } }
@@ -899,11 +887,11 @@ function wireSubmitForm(){
   inp.addEventListener('input',()=>{
     const q=inp.value.trim().toLowerCase(); const box=document.getElementById('matchResults');
     if(q.length<2){box.classList.remove('show');box.innerHTML='';return;}
-    const hits=FIXTURES.filter(f=>f.home.toLowerCase().includes(q)||f.away.toLowerCase().includes(q)).slice(0,6);
-    if(!hits.length){box.classList.add('show');box.innerHTML='<div class="mres"><span class="m">Ingen kampe — prøv et andet hold</span></div>';return;}
+    const hits=allLiveFixturesFlat().filter(f=>f.home.toLowerCase().includes(q)||f.away.toLowerCase().includes(q)).slice(0,6);
+    if(!hits.length){box.classList.add('show');box.innerHTML='<div class="mres"><span class="m">Ingen kommende kampe fundet — prøv »indtast manuelt«</span></div>';return;}
     box.classList.add('show');
-    box.innerHTML=hits.map(f=>`<div class="mres" data-id="${f.id}"><div><div class="t">${f.home} – ${f.away}</div><div class="m">${f.league}</div></div><span class="sp">${f.sport}</span></div>`).join('');
-    box.querySelectorAll('.mres[data-id]').forEach(d=>d.addEventListener('click',()=>{ F.match=FIXTURES.find(x=>x.id===d.dataset.id); F.market=null;F.side=null;F.line="";F.odds=""; box.classList.remove('show'); inp.value=F.match.home+' – '+F.match.away; renderAfterMatch(); }));
+    box.innerHTML=hits.map(f=>`<div class="mres" data-id="${f.id}"><div><div class="t">${f.home} – ${f.away}</div><div class="m">${f.league.name}</div></div><span class="sp">${LIVE_SPORT_LABELS[f.sportKey]}</span></div>`).join('');
+    box.querySelectorAll('.mres[data-id]').forEach(d=>d.addEventListener('click',()=>{ const hit=hits.find(x=>x.id===d.dataset.id); if(hit)chooseLiveFixture(hit.sportKey,hit); box.classList.remove('show'); }));
   });
 }
 function renderAfterMatch(){
@@ -1273,7 +1261,7 @@ function expFor(name){
   const rs=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
   for(const r of rs){ const p=r.picks[name]; if(!isCounting(p))continue;
     let e=5; if(p.hit){ e+=10; if(p.odds>=1.5)streak++; } else streak=0;
-    if(streak>=6)e*=2; exp+=e;
+    if(streak>=4)e*=2; exp+=e;
   }
   expAchievements(name).forEach(a=>{ if(a.got)exp+=a.exp; });
   return exp;
@@ -1400,14 +1388,14 @@ function expSection(){
   const me=S.user; const exp=expFor(me); const spins=spinsAvailable(me);
   const into=exp%EXP_PER_SPIN; const pct=Math.round(into/EXP_PER_SPIN*100); const cs=currentStreak(me);
   const ach=expAchievements(me);
-  const flame=cs>=6?`<div style="font-size:13px;color:var(--lost);font-weight:600;margin-top:6px">🔥 ×2 EXP aktiv · ${cs} i træk</div>`:cs===5?`<div style="font-size:13px;color:var(--amber-soft);margin-top:6px">🔥 Én rigtig mere = ×2 EXP!</div>`:'';
+  const flame=cs>=4?`<div style="font-size:13px;color:var(--lost);font-weight:600;margin-top:6px">🔥 ×2 EXP aktiv · ${cs} i træk</div>`:cs===3?`<div style="font-size:13px;color:var(--amber-soft);margin-top:6px">🔥 Én rigtig mere = ×2 EXP!</div>`:'';
   return `<div class="paper pad" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:baseline"><div class="admin-note">Din EXP</div><div style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft)">${exp} EXP</div></div>
     <div style="height:10px;background:rgba(0,0,0,.12);border-radius:6px;overflow:hidden;margin:10px 0 6px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--amber),var(--amber-soft))"></div></div>
     <div style="font-size:12px;color:var(--ink-soft)">${spins>0?'<b style="color:var(--won)">'+spins+' spin'+(spins>1?'s':'')+' klar!</b> · ':''}${EXP_PER_SPIN-into} EXP til næste${spins>0?'':' spin'}</div>${flame}
     <button class="btn ${spins>0?'btn-dark':'btn-ghost'}" style="margin-top:12px;width:100%" ${spins>0?'':'disabled'} onclick="spinWheel()">🎰 Spin tyveknægten${spins>0?' ('+spins+')':''}</button>
     <details style="margin-top:12px"><summary style="font-size:12px;color:var(--amber-soft);cursor:pointer">Sådan tjener du EXP</summary>
-      <div style="font-size:12px;color:var(--ink-soft);line-height:1.7;margin-top:8px">+5 EXP for hver runde du spiller · +10 når du rammer. Rammer du 5 i træk (odds fra 1,50), tænder 🔥 og du får <b>×2 EXP fra 6. spil og frem</b> — indtil du misser. Plus opgaverne nedenfor. Tærskel: ${EXP_PER_SPIN} EXP = 1 spin.</div>
+      <div style="font-size:12px;color:var(--ink-soft);line-height:1.7;margin-top:8px">+5 EXP for hver runde du spiller · +10 når du rammer. Rammer du 3 i træk (odds fra 1,50), tænder 🔥 og du får <b>×2 EXP fra 4. spil og frem</b> — indtil du misser. Plus opgaverne nedenfor. Tærskel: ${EXP_PER_SPIN} EXP = 1 spin.</div>
       <div style="margin-top:8px">${ach.map(a=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px"><span style="color:${a.got?'var(--won)':'var(--ink-soft)'}">${a.got?'✓':'○'} ${a.name} · ${a.desc}</span><span style="font-family:'JetBrains Mono';color:var(--ink-soft)">+${a.exp}</span></div>`).join('')}</div>
     </details></div>`;
 }
