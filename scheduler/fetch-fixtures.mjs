@@ -1,128 +1,54 @@
 // Kører én gang dagligt (tidlig morgen, dansk tid) via .github/workflows/fetch-fixtures.yml.
-// Henter rigtige, kommende kampe + 1X2-odds fra API-Sports (kun fodbold i denne omgang) og
-// gemmer dem i Firestore, så appens klient aldrig selv skal kende API-nøglen eller kalde API-Sports.
+// Orkestrerer alle kamp-kilder (én fil pr. sportsgren under ./sources/) og samler resultatet
+// i ét Firestore-dokument (clubs/rona/state/fixturesLive), som appens klient læser — API-nøglerne
+// ligger kun her som GitHub-secrets, aldrig i klient-koden.
 //
-// Gratis-planens begrænsninger (bekræftet ved research):
-//  - "next"-parameteren findes ikke på gratis planen.
-//  - league+season er låst til gamle sæsoner (2022-2024) på gratis planen.
-//  - MEN: /fixtures?date=YYYY-MM-DD uden liga/sæson virker fint med aktuelle data,
-//    begrænset til et rullende 3-dages vindue (i går/i dag/i morgen).
-//  - /odds?fixture=<id> (pr. kamp) virker upåvirket og giver bl.a. "Match Winner" (=1X2).
-// Klubbens runder kører kun i weekenden, så "i dag + i morgen" er præcis det, der er brug for,
-// når robotten kører lørdag morgen.
+// Modulært: for at tilføje/fjerne en sportsgren, tilføj/fjern kun dens egen fil under ./sources/
+// og dens ene linje i SOURCES-listen herunder. Fejler én sportsgren (fx en afvist API-kilde),
+// beholder vi bare dens seneste kendte data i Firestore i stedet for at overskrive med tomt.
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { DateTime } from 'luxon';
+import { fetchFootball } from './sources/football.mjs';
+import { fetchHandball } from './sources/handball.mjs';
 
 const svcJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-const apiKey = process.env.API_SPORTS_KEY;
+const apiSportsKey = process.env.API_SPORTS_KEY;
 if (!svcJson) { console.error('Mangler FIREBASE_SERVICE_ACCOUNT secret.'); process.exit(1); }
-if (!apiKey) { console.error('Mangler API_SPORTS_KEY secret.'); process.exit(1); }
+if (!apiSportsKey) { console.error('Mangler API_SPORTS_KEY secret.'); process.exit(1); }
 
 initializeApp({ credential: cert(JSON.parse(svcJson)) });
 const db = getFirestore();
 const CLUB = db.collection('clubs').doc('rona');
-const TZ = 'Europe/Copenhagen';
+const fixturesLiveRef = CLUB.collection('state').doc('fixturesLive');
 
-// Fulgte fodboldligaer — udvid frit med flere API-Sports liga-id'er efter behov.
-const FOOTBALL_LEAGUES = [
-  { id: 119, name: 'Superliga' },
-  { id: 39, name: 'Premier League' },
-  { id: 140, name: 'La Liga' },
-  { id: 2, name: 'Champions League' },
-  { id: 1, name: 'VM' },
+const SOURCES = [
+  { key: 'football', label: 'Fodbold', fetch: () => fetchFootball(apiSportsKey) },
+  { key: 'handball', label: 'Håndbold', fetch: () => fetchHandball(apiSportsKey) },
+  // Kommende: { key: 'basketball', label: 'Basketball', fetch: () => fetchBasketball(apiSportsKey) },
+  // Kommende: { key: 'hockey', label: 'Ishockey', fetch: () => fetchHockey(apiSportsKey) },
+  // Kommende: { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(process.env.ODDSPAPI_KEY) },
 ];
-const PREFERRED_BOOKMAKERS = ['Bet365', '10Bet', 'Unibet'];
-
-async function apiGet(base, path, params) {
-  const url = new URL(base + path);
-  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
-  const json = await res.json();
-  if (json.errors && Object.keys(json.errors).length) {
-    throw new Error(`${path} ${JSON.stringify(params)} → ${JSON.stringify(json.errors)}`);
-  }
-  return json.response || [];
-}
-
-function pickMatchWinnerOdds(oddsResponse) {
-  if (!oddsResponse.length) return null;
-  const bookmakers = oddsResponse[0].bookmakers || [];
-  const byName = name => bookmakers.find(b => b.name === name);
-  const bm = PREFERRED_BOOKMAKERS.map(byName).find(Boolean) || bookmakers[0];
-  if (!bm) return null;
-  const bet = bm.bets.find(b => b.name === 'Match Winner');
-  if (!bet) return null;
-  const val = v => { const f = bet.values.find(x => x.value === v); return f ? parseFloat(f.odd) : null; };
-  const odds = { home: val('Home'), draw: val('Draw'), away: val('Away') };
-  if (odds.home == null || odds.draw == null || odds.away == null) return null;
-  return odds;
-}
-
-async function fetchFootball() {
-  const FOOTBALL_BASE = 'https://v3.football.api-sports.io';
-  const leagueIds = new Set(FOOTBALL_LEAGUES.map(l => l.id));
-  const leagueName = id => FOOTBALL_LEAGUES.find(l => l.id === id)?.name || String(id);
-
-  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
-
-  // Gratis-planens tilladte datovindue er ikke altid symmetrisk omkring "i dag" (set i praksis) —
-  // så hvert dato-opslag fejler for sig selv, i stedet for at én afvist dato vælter hele kørslen.
-  // Fejler BEGGE datoer, er det formentlig et rigtigt problem (nøgle/kvote/netværk) — så kaster vi
-  // videre, så main() lader gårsdagens cache i Firestore stå urørt frem for at overskrive med tomt.
-  async function fixturesForDate(date) {
-    try {
-      return { ok: true, data: await apiGet(FOOTBALL_BASE, '/fixtures', { date }) };
-    } catch (e) {
-      console.warn(`Kunne ikke hente kampe for ${date} (springer over): ${e.message}`);
-      return { ok: false, data: [] };
-    }
-  }
-  const [resToday, resTomorrow] = await Promise.all([
-    fixturesForDate(today),
-    fixturesForDate(tomorrow),
-  ]);
-  if (!resToday.ok && !resTomorrow.ok) {
-    throw new Error(`Kunne hverken hente kampe for ${today} eller ${tomorrow}.`);
-  }
-
-  const relevant = [...resToday.data, ...resTomorrow.data].filter(f => leagueIds.has(f.league.id));
-  console.log(`Fodbold: ${relevant.length} kamp(e) fundet i de fulgte ligaer for ${today}/${tomorrow}.`);
-
-  const out = [];
-  for (const f of relevant) {
-    let odds = null;
-    try {
-      const oddsResp = await apiGet(FOOTBALL_BASE, '/odds', { fixture: f.fixture.id });
-      odds = pickMatchWinnerOdds(oddsResp);
-    } catch (e) {
-      console.error('Odds-opslag fejlede for', f.fixture.id, e.message);
-    }
-    if (!odds) continue; // ingen odds endnu (fx for langt ude, eller ingen bookmaker-data) — springes over
-    out.push({
-      id: 'f' + f.fixture.id,
-      date: f.fixture.date,
-      league: { id: f.league.id, name: leagueName(f.league.id) },
-      home: f.teams.home.name,
-      away: f.teams.away.name,
-      odds,
-    });
-  }
-  return out;
-}
 
 async function main() {
-  const football = await fetchFootball();
-  await CLUB.collection('state').doc('fixturesLive').set({
-    updatedAt: Date.now(),
-    football,
-  });
-  console.log(`Gemt ${football.length} fodboldkamp(e) med odds i Firestore.`);
+  const existingSnap = await fixturesLiveRef.get();
+  const existing = existingSnap.exists ? existingSnap.data() : {};
+
+  const result = { updatedAt: Date.now() };
+  for (const src of SOURCES) {
+    try {
+      result[src.key] = await src.fetch();
+      console.log(`${src.label}: gemmer ${result[src.key].length} kamp(e).`);
+    } catch (e) {
+      console.error(`${src.label} fejlede — beholder tidligere data i Firestore:`, e.message);
+      result[src.key] = existing[src.key] || [];
+    }
+  }
+
+  await fixturesLiveRef.set(result);
+  console.log('fixturesLive opdateret.');
 }
 
 main().catch(e => {
-  // Fejler kaldet, rører vi IKKE ved Firestore — gårsdagens cache bliver stående (intet datatab).
-  console.error('Kunne ikke opdatere fixturesLive:', e.message);
+  console.error('Uventet fejl i scheduler:', e.message);
   process.exit(1);
 });

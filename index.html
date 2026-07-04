@@ -823,25 +823,31 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
 }
-function liveLeagues(){ return [...new Set(((S.fixturesLive&&S.fixturesLive.football)||[]).map(f=>f.league.name))]; }
-function liveFixturesFor(leagueName){ return ((S.fixturesLive&&S.fixturesLive.football)||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
+const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold'};   // udvid her når flere kilder (basket/hockey/CS2) kommer til
+function liveSports(){ return Object.keys(LIVE_SPORT_LABELS).filter(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).length>0); }
+function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }
+function liveFixturesFor(sportKey,leagueName){ return ((S.fixturesLive&&S.fixturesLive[sportKey])||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
 function fmtKickoff(iso){ try{ return new Date(iso).toLocaleString('da-DK',{weekday:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}); }catch(e){ return iso; } }
 function liveSectionHTML(){
-  const leagues=liveLeagues();
-  if(!leagues.length) return '';
-  return `<div class="field"><label class="fld">⚽ Kommende kampe (live) — vælg liga</label>
-    <select id="liveLeagueSel">${leagues.map(l=>`<option>${l}</option>`).join('')}</select></div>
+  const sports=liveSports();
+  if(!sports.length) return '';
+  const firstSport=sports[0]; const leagues=liveLeaguesFor(firstSport);
+  return `<div class="field"><label class="fld">📡 Kommende kampe (live)</label>
+    <div class="two">
+      <select id="liveSportSel">${sports.map(s=>`<option value="${s}">${LIVE_SPORT_LABELS[s]}</option>`).join('')}</select>
+      <select id="liveLeagueSel">${leagues.map(l=>`<option>${l}</option>`).join('')}</select>
+    </div></div>
     <div class="results show" id="liveMatchList" style="margin-bottom:14px"></div>`;
 }
-function renderLiveMatchList(leagueName){
+function renderLiveMatchList(sportKey,leagueName){
   const box=document.getElementById('liveMatchList'); if(!box)return;
-  const fx=liveFixturesFor(leagueName);
+  const fx=liveFixturesFor(sportKey,leagueName);
   if(!fx.length){ box.innerHTML='<div class="mres"><span class="m">Ingen kampe fundet i denne liga lige nu</span></div>'; return; }
-  box.innerHTML=fx.map(f=>`<div class="mres" data-id="${f.id}"><div><div class="t">${f.home} – ${f.away}</div><div class="m">${fmtKickoff(f.date)}</div></div><span class="sp">1X2</span></div>`).join('');
-  box.querySelectorAll('.mres[data-id]').forEach(d=>d.addEventListener('click',()=>{ const item=fx.find(x=>x.id===d.dataset.id); if(item)chooseLiveFixture(item); }));
+  box.innerHTML=fx.map(f=>`<div class="mres" data-id="${f.id}"><div><div class="t">${f.home} – ${f.away}</div><div class="m">${fmtKickoff(f.date)}</div></div><span class="sp">${f.odds?'1X2':'uden odds'}</span></div>`).join('');
+  box.querySelectorAll('.mres[data-id]').forEach(d=>d.addEventListener('click',()=>{ const item=fx.find(x=>x.id===d.dataset.id); if(item)chooseLiveFixture(sportKey,item); }));
 }
-function chooseLiveFixture(fx){
-  F.match={ id:fx.id, sport:'Fodbold', home:fx.home, away:fx.away, league:fx.league.name, live:true, liveOdds:fx.odds };
+function chooseLiveFixture(sportKey,fx){
+  F.match={ id:fx.id, sport:LIVE_SPORT_LABELS[sportKey]||sportKey, home:fx.home, away:fx.away, league:fx.league.name, live:true, liveOdds:fx.odds||null };
   F.market="1X2 (Moneyline)"; F.side=null; F.line=""; F.odds="";
   const inp=document.getElementById('matchSearch'); if(inp)inp.value=fx.home+' – '+fx.away;
   const box=document.getElementById('matchResults'); if(box){box.classList.remove('show');box.innerHTML='';}
@@ -878,8 +884,13 @@ function useManualMatch(){
   renderAfterMatch();
 }
 function wireSubmitForm(){
-  const liveSel=document.getElementById('liveLeagueSel');
-  if(liveSel){ renderLiveMatchList(liveSel.value); liveSel.addEventListener('change',()=>renderLiveMatchList(liveSel.value)); }
+  const sportSel=document.getElementById('liveSportSel'), leagueSel=document.getElementById('liveLeagueSel');
+  if(sportSel && leagueSel){
+    const refreshLeagues=()=>{ leagueSel.innerHTML=liveLeaguesFor(sportSel.value).map(l=>`<option>${l}</option>`).join(''); renderLiveMatchList(sportSel.value, leagueSel.value); };
+    sportSel.addEventListener('change', refreshLeagues);
+    leagueSel.addEventListener('change', ()=>renderLiveMatchList(sportSel.value, leagueSel.value));
+    renderLiveMatchList(sportSel.value, leagueSel.value);
+  }
   const inp=document.getElementById('matchSearch'); if(!inp)return;
   inp.addEventListener('input',()=>{
     const q=inp.value.trim().toLowerCase(); const box=document.getElementById('matchResults');
