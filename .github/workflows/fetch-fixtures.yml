@@ -1,4 +1,4 @@
-name: Fetch football fixtures
+name: Fetch live fixtures
 
 on:
   schedule:
@@ -21,3 +21,4 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+          ODDSPAPI_KEY: ${{ secrets.ODDSPAPI_KEY }}

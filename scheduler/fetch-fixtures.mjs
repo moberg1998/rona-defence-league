@@ -12,9 +12,11 @@ import { fetchFootball } from './sources/football.mjs';
 import { fetchHandball } from './sources/handball.mjs';
 import { fetchBasketball } from './sources/basketball.mjs';
 import { fetchHockey } from './sources/hockey.mjs';
+import { fetchCS2 } from './sources/cs2.mjs';
 
 const svcJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 const apiSportsKey = process.env.API_SPORTS_KEY;
+const oddsPapiKey = process.env.ODDSPAPI_KEY;
 if (!svcJson) { console.error('Mangler FIREBASE_SERVICE_ACCOUNT secret.'); process.exit(1); }
 if (!apiSportsKey) { console.error('Mangler API_SPORTS_KEY secret.'); process.exit(1); }
 
@@ -28,7 +30,7 @@ const SOURCES = [
   { key: 'handball', label: 'Håndbold', fetch: () => fetchHandball(apiSportsKey) },
   { key: 'basketball', label: 'Basketball', fetch: () => fetchBasketball(apiSportsKey) },
   { key: 'hockey', label: 'Ishockey', fetch: () => fetchHockey(apiSportsKey) },
-  // Kommende: { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(process.env.ODDSPAPI_KEY) },
+  { key: 'cs2', label: 'CS2', fetch: () => fetchCS2(oddsPapiKey) },
 ];
 
 async function main() {

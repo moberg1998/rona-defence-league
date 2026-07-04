@@ -823,7 +823,8 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
 }
-const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey'};   // udvid her når CS2 kommer til
+const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey', cs2:'Esport'};
+const LIVE_DEFAULT_MARKET={football:'1X2 (Moneyline)', handball:'1X2 (Moneyline)', basketball:'1X2 (Moneyline)', hockey:'1X2 (Moneyline)', cs2:'Kampvinder'};
 function liveSports(){ return Object.keys(LIVE_SPORT_LABELS).filter(k=>((S.fixturesLive&&S.fixturesLive[k])||[]).length>0); }
 function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }
 function liveFixturesFor(sportKey,leagueName){ return ((S.fixturesLive&&S.fixturesLive[sportKey])||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
@@ -848,7 +849,7 @@ function renderLiveMatchList(sportKey,leagueName){
 }
 function chooseLiveFixture(sportKey,fx){
   F.match={ id:fx.id, sport:LIVE_SPORT_LABELS[sportKey]||sportKey, home:fx.home, away:fx.away, league:fx.league.name, live:true, liveOdds:fx.odds||null };
-  F.market="1X2 (Moneyline)"; F.side=null; F.line=""; F.odds="";
+  F.market=LIVE_DEFAULT_MARKET[sportKey]||"1X2 (Moneyline)"; F.side=null; F.line=""; F.odds="";
   const inp=document.getElementById('matchSearch'); if(inp)inp.value=fx.home+' – '+fx.away;
   const box=document.getElementById('matchResults'); if(box){box.classList.remove('show');box.innerHTML='';}
   renderAfterMatch();
@@ -947,8 +948,8 @@ function renderMkExtra(){
   document.querySelectorAll('#sideSeg button').forEach(b=>b.addEventListener('click',()=>{
     F.side=b.dataset.v;
     document.querySelectorAll('#sideSeg button').forEach(x=>x.classList.toggle('active',x===b));
-    if(F.match.liveOdds && F.market==="1X2 (Moneyline)"){
-      const key=({'1':'home','X':'draw','2':'away'})[F.side];
+    if(F.match.liveOdds && (F.market==="1X2 (Moneyline)"||F.market==="Kampvinder")){
+      const key=({'1':'home','X':'draw','2':'away','home':'home','away':'away'})[F.side];
       if(key && F.match.liveOdds[key]!=null){ F.odds=String(F.match.liveOdds[key]); const oi=document.getElementById('oddsInp'); if(oi)oi.value=F.odds; }
     }
     upd();
