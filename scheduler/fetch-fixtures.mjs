@@ -67,12 +67,27 @@ async function fetchFootball() {
   const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
   const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-  const [fixturesToday, fixturesTomorrow] = await Promise.all([
-    apiGet(FOOTBALL_BASE, '/fixtures', { date: today }),
-    apiGet(FOOTBALL_BASE, '/fixtures', { date: tomorrow }),
+  // Gratis-planens tilladte datovindue er ikke altid symmetrisk omkring "i dag" (set i praksis) —
+  // så hvert dato-opslag fejler for sig selv, i stedet for at én afvist dato vælter hele kørslen.
+  // Fejler BEGGE datoer, er det formentlig et rigtigt problem (nøgle/kvote/netværk) — så kaster vi
+  // videre, så main() lader gårsdagens cache i Firestore stå urørt frem for at overskrive med tomt.
+  async function fixturesForDate(date) {
+    try {
+      return { ok: true, data: await apiGet(FOOTBALL_BASE, '/fixtures', { date }) };
+    } catch (e) {
+      console.warn(`Kunne ikke hente kampe for ${date} (springer over): ${e.message}`);
+      return { ok: false, data: [] };
+    }
+  }
+  const [resToday, resTomorrow] = await Promise.all([
+    fixturesForDate(today),
+    fixturesForDate(tomorrow),
   ]);
+  if (!resToday.ok && !resTomorrow.ok) {
+    throw new Error(`Kunne hverken hente kampe for ${today} eller ${tomorrow}.`);
+  }
 
-  const relevant = [...fixturesToday, ...fixturesTomorrow].filter(f => leagueIds.has(f.league.id));
+  const relevant = [...resToday.data, ...resTomorrow.data].filter(f => leagueIds.has(f.league.id));
   console.log(`Fodbold: ${relevant.length} kamp(e) fundet i de fulgte ligaer for ${today}/${tomorrow}.`);
 
   const out = [];
