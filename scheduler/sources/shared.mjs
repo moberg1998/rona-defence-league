@@ -5,9 +5,22 @@
 export const TZ = 'Europe/Copenhagen';
 export const PREFERRED_BOOKMAKERS = ['Bet365', '10Bet', 'Unibet'];
 
+// API-Sports' gratis plan tillader kun ca. 10 opslag i minuttet (opdaget ved en rigtig kørsel,
+// hvor Basketballs mange odds-opslag ramte "Too many requests"). Vi holder mindst 6,5 sek. mellem
+// hvert kald til samme bas-URL (sport), med god margin, i stedet for at gætte på et helt konkret tal.
+const lastCallAt = new Map();
+const MIN_INTERVAL_MS = 6500;
+async function throttle(base) {
+  const last = lastCallAt.get(base) || 0;
+  const wait = last + MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastCallAt.set(base, Date.now());
+}
+
 // Laver en apiGet-funktion bundet til én bestemt API-nøgle/header — genbruges af hver API-Sports-kilde.
 export function makeApiSportsGet(apiKey) {
   return async function apiGet(base, path, params) {
+    await throttle(base);
     const url = new URL(base + path);
     Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url, { headers: { 'x-apisports-key': apiKey } });

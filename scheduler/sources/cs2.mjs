@@ -1,20 +1,22 @@
 // CS2 (Counter-Strike 2) via OddsPapi (https://oddspapi.io) — ikke API-Sports.
-// VIGTIGT: denne kilde er mindre efterprøvet end de andre (fodbold/håndbold/basket/ishockey),
-// fordi ODDSPAPI_KEY kun findes som GitHub-secret og ikke er testet direkte af Claude undervejs
-// (i modsætning til API-Sports, hvor nøglen blev delt midlertidigt til research). Baseret på
-// OddsPapis offentlige dokumentation (oddspapi.io/en/docs):
-//  - Base-URL: https://api.oddspapi.io
-//  - Nøglen sendes som query-parameter "apiKey" (ikke en header)
+// Bekræftet ved en rigtig kørsel (log delt af Magnus) og opslag i OddsPapis dokumentation:
+//  - Base-URL: https://api.oddspapi.io, nøglen sendes som query-parameter "apiKey"
 //  - Fixtures: GET /v4/fixtures?sportId=17&from=YYYY-MM-DD&to=YYYY-MM-DD&hasOdds=true (17 = CS2)
-//  - Odds pr. kamp: GET /v4/odds?fixtureId=<id>
-// Den præcise form af odds-svaret er ikke bekræftet — parseren herunder er bevidst defensiv:
-// findes der intet genkendeligt 2-vejs kampvinder-marked, logges det rå svar (til fejlsøgning),
-// og kampen vises i appen UDEN odds i stedet for at fejle (samme fallback som de andre sportsgrene).
+//    Fixture-objektet har IKKE holdnavne direkte — kun fixtureId, participant1Id, participant2Id,
+//    tournamentId, startTime. Navne slås op separat:
+//  - GET /v4/participants?sportId=17 → { "<id>": "Holdnavn", ... } (ét kald, hele sportens deltagere)
+//  - GET /v4/tournaments?sportId=17 → array af { tournamentId, tournamentName, ... }
+//  - Odds pr. kamp: GET /v4/odds?fixtureId=<id> — dybt indlejret struktur:
+//    bookmakerOdds[bookmaker].markets[marketId].outcomes[outcomeId].players[playerId].price.
+//    Hvilket marketId der er "kampvinder" fremgår ikke af dokumentationen, så vi gætter forsigtigt
+//    (det første 2-udfalds marked) — rammer gættet forbi, vises kampen bare uden odds i appen.
+//  - Rate-limits ifølge dokumentationen: participants/tournaments ~1000ms cooldown, odds ~500ms.
 import { TZ } from './shared.mjs';
 import { DateTime } from 'luxon';
 
 const BASE = 'https://api.oddspapi.io';
 const CS2_SPORT_ID = 17;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function apiGet(apiKey, path, params) {
   const url = new URL(BASE + path);
@@ -33,28 +35,25 @@ function asList(json) {
   return json?.data || json?.fixtures || json?.response || json?.results || [];
 }
 
-// Leder efter et 2-vejs (evt. 3-vejs) kampvinder-marked i et ukendt odds-svar, uden at
-// kende den præcise struktur på forhånd. Returnerer null i stedet for at fejle, hvis intet findes.
+// Leder efter et 2-udfalds "kampvinder"-marked i det indlejrede odds-svar. Se kommentaren øverst —
+// det er et forsigtigt gæt, ikke en bekræftet markedstype. Returnerer null hvis intet matcher,
+// hvorefter kampen vises i appen uden odds (spilleren taster selv), i stedet for at fejle.
 function extractTwoWayOdds(oddsJson) {
   try {
-    const markets = asList(oddsJson.markets || oddsJson.odds || oddsJson);
-    for (const m of markets) {
-      const name = (m.name || m.market || '').toLowerCase();
-      const outcomes = m.outcomes || m.selections || m.prices || [];
-      if (!outcomes.length) continue;
-      const looksLikeWinner = /winner|moneyline|match.?winner|1x2|home.?away/.test(name) || outcomes.length === 2;
-      if (!looksLikeWinner) continue;
-      const priceOf = idx => {
-        const o = outcomes[idx];
-        const p = o?.price ?? o?.odds ?? o?.decimal ?? o?.value;
-        return p != null ? parseFloat(p) : null;
-      };
-      if (outcomes.length === 2) {
-        const home = priceOf(0), away = priceOf(1);
+    const bookmakerOdds = oddsJson?.bookmakerOdds || oddsJson?.odds || {};
+    for (const bmName of Object.keys(bookmakerOdds)) {
+      const markets = bookmakerOdds[bmName]?.markets || {};
+      for (const marketId of Object.keys(markets)) {
+        const outcomes = markets[marketId]?.outcomes || {};
+        const outcomeIds = Object.keys(outcomes);
+        if (outcomeIds.length !== 2) continue;
+        const priceOf = oid => {
+          const players = outcomes[oid]?.players || {};
+          const first = Object.values(players)[0];
+          return first?.price != null ? parseFloat(first.price) : null;
+        };
+        const home = priceOf(outcomeIds[0]), away = priceOf(outcomeIds[1]);
         if (home != null && away != null) return { home, draw: null, away };
-      } else if (outcomes.length === 3) {
-        const home = priceOf(0), draw = priceOf(1), away = priceOf(2);
-        if (home != null && away != null) return { home, draw, away };
       }
     }
   } catch (e) {
@@ -72,24 +71,33 @@ export async function fetchCS2(apiKey) {
   const fixturesJson = await apiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: weekAhead, hasOdds: true });
   const fixtures = asList(fixturesJson);
   console.log(`CS2: ${fixtures.length} kamp(e) fundet (${today} → ${weekAhead}).`);
+  if (!fixtures.length) return [];
+
+  await sleep(1100);
+  const participantsMap = await apiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID });
+
+  await sleep(1100);
+  const tournamentsList = asList(await apiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID }));
+  const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
 
   const out = [];
   for (const fx of fixtures) {
-    const id = fx.id || fx.fixtureId;
-    const home = fx.home?.name || fx.homeTeam?.name || fx.participants?.[0]?.name;
-    const away = fx.away?.name || fx.awayTeam?.name || fx.participants?.[1]?.name;
-    const date = fx.startDate || fx.date || fx.commenceTime;
-    const league = fx.tournament?.name || fx.league?.name || 'CS2';
+    const id = fx.fixtureId || fx.id;
+    const home = participantsMap?.[fx.participant1Id] || fx.home?.name;
+    const away = participantsMap?.[fx.participant2Id] || fx.away?.name;
+    const date = fx.startTime || fx.date || fx.commenceTime;
+    const league = tournamentName(fx.tournamentId) || fx.tournament?.name || 'CS2';
     if (!id || !home || !away || !date) {
-      console.warn('CS2: sprang en kamp over (ukendt felt-struktur):', JSON.stringify(fx).slice(0, 300));
+      console.warn('CS2: sprang en kamp over (mangler felt):', JSON.stringify(fx).slice(0, 300));
       continue;
     }
 
     let odds = null;
     try {
+      await sleep(600);
       const oddsJson = await apiGet(apiKey, '/v4/odds', { fixtureId: id });
       odds = extractTwoWayOdds(oddsJson);
-      if (!odds) console.warn('CS2: intet genkendeligt odds-marked for', id, '— rå svar:', JSON.stringify(oddsJson).slice(0, 400));
+      if (!odds) console.warn('CS2: intet genkendeligt odds-marked for', id, '— rå svar:', JSON.stringify(oddsJson).slice(0, 500));
     } catch (e) {
       console.warn('CS2: odds-opslag fejlede for', id, e.message);
     }
