@@ -6,8 +6,9 @@ service cloud.firestore {
     function isSignedIn(){ return request.auth != null; }
     function myInviteExists(){ return exists(/databases/$(database)/documents/clubs/rona/invites/$(myEmail())); }
     function myInvite(){ return get(/databases/$(database)/documents/clubs/rona/invites/$(myEmail())).data; }
-    // "Medlem" = logget ind OG har en invite-konto, der er taget i brug (selv har sat sin adgangskode).
-    function isMember(){ return isSignedIn() && myInviteExists() && myInvite().used == true; }
+    // "Medlem" = logget ind OG har en invite-konto, der er taget i brug (selv har sat sin adgangskode)
+    // OG ikke er deaktiveret af admin (manglende "active"-felt = aktiv, for gamle invites).
+    function isMember(){ return isSignedIn() && myInviteExists() && myInvite().used == true && myInvite().get('active', true) != false; }
     function isAdminUser(){ return isMember() && myInvite().isAdmin == true; }
 
     match /clubs/rona {

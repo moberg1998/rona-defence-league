@@ -18,7 +18,7 @@ if (messaging) {
   });
 }
 
-const CACHE_NAME = 'rdl-shell-v1';
+const CACHE_NAME = 'rdl-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -51,7 +51,8 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Kun app-skallen (HTML/manifest/ikoner) caches for hurtig/offline opstart.
+// Kun app-skallen (HTML/manifest/ikoner) caches — som offline-fallback, ikke som førstevalg.
+// Netværket forsøges altid først, så en ny udgave af appen vises med det samme, når man er online.
 // Firestore/Auth-kald går altid direkte til netværket — de rammer aldrig denne cache.
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
@@ -59,12 +60,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const network = fetch(event.request).then(res => {
-        if (res && res.ok) caches.open(CACHE_NAME).then(cache => cache.put(event.request, res.clone()));
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(event.request).then(res => {
+      if (res && res.ok) caches.open(CACHE_NAME).then(cache => cache.put(event.request, res.clone()));
+      return res;
+    }).catch(() => caches.match(event.request))
   );
 });

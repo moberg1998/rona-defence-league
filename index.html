@@ -370,6 +370,7 @@ let MY_NAME=null;   // spillernavn afgjort ved login (matcher invites-dokumentet
 function freshState(){
   return {
     players:[...DEFAULT_PLAYERS],
+    inactivePlayers:[],        // navne på deaktiverede medlemmer — spærret login, ingen nye disciplin-kort
     season:{name:"Sæson 1", started:new Date().toISOString().slice(0,10)},
     monthlyFee:100,            // månedstakst, kan ændres af admin
     balanceAdj:0,              // manuel balance-justering fra admin (småting der ikke fanges automatisk)
@@ -383,7 +384,7 @@ function freshState(){
     auction:{ items:[], sales:[], open:false, season:null, budgets:{}, running:false, order:[], idx:0, high:0, highBy:null, endsAt:0, sold:[], done:false }
   };
 }
-function metaOf(fs){ return {players:fs.players, season:fs.season, monthlyFee:fs.monthlyFee, balanceAdj:fs.balanceAdj, nicks:fs.nicks}; }
+function metaOf(fs){ return {players:fs.players, inactivePlayers:fs.inactivePlayers, season:fs.season, monthlyFee:fs.monthlyFee, balanceAdj:fs.balanceAdj, nicks:fs.nicks}; }
 let unsubList=[];
 function stopSync(){ unsubList.forEach(u=>u()); unsubList=[]; }
 function startSync(){
@@ -400,7 +401,7 @@ function startSync(){
         partReady(key); renderAllSafe();
       }, err=>{ console.error(err); partReady(key); }));
     }
-    docSync(metaRef,'meta', d=>{ S.players=(d.players&&d.players.length)?d.players:[...DEFAULT_PLAYERS]; S.season=d.season; S.monthlyFee=(d.monthlyFee!=null)?d.monthlyFee:100; S.balanceAdj=d.balanceAdj||0; S.nicks=d.nicks||{}; PLAYERS.length=0; S.players.forEach(n=>PLAYERS.push(n)); S.user=MY_NAME; });
+    docSync(metaRef,'meta', d=>{ S.players=(d.players&&d.players.length)?d.players:[...DEFAULT_PLAYERS]; S.inactivePlayers=d.inactivePlayers||[]; S.season=d.season; S.monthlyFee=(d.monthlyFee!=null)?d.monthlyFee:100; S.balanceAdj=d.balanceAdj||0; S.nicks=d.nicks||{}; PLAYERS.length=0; S.players.forEach(n=>PLAYERS.push(n)); S.user=MY_NAME; });
     docSync(discRef,'disc', d=>{ S.disc=d; PLAYERS.forEach(n=>{ if(!S.disc.players[n])S.disc.players[n]={yellow:false,streak:0,reds:0}; }); });
     docSync(powerRef,'power', d=>{ S.power=d; PLAYERS.forEach(n=>{ if(!S.power.arsenal[n])S.power.arsenal[n]=[]; if(S.power.spun[n]==null)S.power.spun[n]=0; }); });
     docSync(auctionRef,'auction', d=>{ S.auction=d; if(S.auction.running && !auctionInterval) startAuctionTimer(); });
@@ -424,7 +425,7 @@ function fee(){ return (S&&S.monthlyFee!=null)?S.monthlyFee:100; }
 async function saveState(){
   try{
     await Promise.all([
-      metaRef.set({players:S.players, season:S.season, monthlyFee:S.monthlyFee, balanceAdj:S.balanceAdj, nicks:S.nicks}),
+      metaRef.set({players:S.players, inactivePlayers:S.inactivePlayers||[], season:S.season, monthlyFee:S.monthlyFee, balanceAdj:S.balanceAdj, nicks:S.nicks}),
       discRef.set(S.disc), powerRef.set(S.power), auctionRef.set(S.auction),
       paymentsRef.set(S.payments), finesRef.set({list:S.fines}), archiveRef.set({list:S.archive}),
     ]);
@@ -599,6 +600,46 @@ function seasonRanks(){   // delt placering når to står HELT lige på alle tri
   order.forEach((n,i)=>{ if(i>0 && !same(order[i-1],n)) rank=i+1; ranks[n]=rank; });
   return {order, ranks, same};
 }
+// Samme rangstige som seasonRanks(), men for en vilkårlig delmængde af afgjorte runder —
+// bruges kun til at se, hvor nogen lå FØR seneste runde (placerings-pile).
+function leaguePointsForRounds(rs){
+  const lg={}; PLAYERS.forEach(n=>lg[n]=0);
+  const byMonth={}; rs.forEach(r=>(byMonth[r.date.slice(0,7)]||=[]).push(r));
+  Object.values(byMonth).forEach(ms=>{ const {raw}=monthPoints(ms); PLAYERS.forEach(n=>lg[n]+=(raw[n]||0)); });
+  return lg;
+}
+function statsForRounds(name, rs){
+  let hits=0,sumHit=0,picks=0;
+  rs.forEach(r=>{ const p=r.picks[name]; if(!isCounting(p))return; picks++; if(p.hit){hits++;sumHit+=p.odds;} });
+  return {picks,hitrate:picks?hits/picks:0,tb:picks?sumHit/picks*100:0,net:sumHit-picks};
+}
+function bigHitsForRounds(name, rs){ return rs.filter(r=>{const p=r.picks[name];return p&&isCounting(p)&&p.hit&&p.odds>=3;}).length; }
+function seasonRanksForRounds(rs){
+  const lg=leaguePointsForRounds(rs); const s={}; PLAYERS.forEach(n=>s[n]=statsForRounds(n,rs));
+  const order=[...PLAYERS].sort((a,b)=> lg[b]-lg[a] || s[b].tb-s[a].tb || s[b].hitrate-s[a].hitrate || s[b].net-s[a].net || bigHitsForRounds(b,rs)-bigHitsForRounds(a,rs));
+  const same=(a,b)=> lg[a]===lg[b] && s[a].tb===s[b].tb && s[a].hitrate===s[b].hitrate && s[a].net===s[b].net && bigHitsForRounds(a,rs)===bigHitsForRounds(b,rs);
+  const ranks={}; let rank=1;
+  order.forEach((n,i)=>{ if(i>0 && !same(order[i-1],n)) rank=i+1; ranks[n]=rank; });
+  return {order, ranks};
+}
+function rankArrows(){   // placering nu vs. placering før seneste afgjorte runde
+  const rs=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+  if(rs.length<2) return {};
+  const {ranks:prev}=seasonRanksForRounds(rs.slice(0,-1));
+  const {ranks:cur}=seasonRanksForRounds(rs);
+  const out={}; PLAYERS.forEach(n=>{ const d=prev[n]-cur[n]; out[n]= d>0?'up':d<0?'down':'same'; });
+  return out;
+}
+// Formkurve: seneste N afgjorte runders resultat for en spiller — ✓/✗/∅/– (ikke spillet).
+function formGuide(name, n){
+  n=n||5;
+  const rs=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id).slice(-n);
+  return rs.map(r=>{ const p=r.picks[name];
+    if(!p) return {t:'–',c:'na'};
+    if(p.hit==='void') return {t:'∅',c:'void'};
+    return p.hit ? {t:'✓',c:'win'} : {t:'✗',c:'loss'};
+  });
+}
 function couponNet(r){
   if(!r.stake)return 0;
   if(r.payoutOverride!=null) return r.payoutOverride - r.stake;   // admin har sat faktisk udbetaling (fx odds-boost)
@@ -669,6 +710,7 @@ function computeAwards(){
 function fmtDate(iso){const[y,m,d]=iso.split('-');return `${d}.${m}.${y}`;}
 function isAdmin(){return S.user===ADMIN;}
 function nameOf(n){ const nk=S.nicks&&S.nicks[n]; return nk?`${nk} (${n})`:n; }
+function isActivePlayer(n){ return !(S.inactivePlayers||[]).includes(n); }
 function shortName(n){ return (S.nicks&&S.nicks[n])||n; }
 function openRound(){return S.rounds.find(r=>r.status!=='settled');}
 function payMonths(){ const s=new Set(settledRounds().map(r=>r.date.slice(0,7))); const op=openRound(); if(op)s.add(op.date.slice(0,7)); return [...s]; }
@@ -705,7 +747,68 @@ function slipHTML(r){
   return `<div class="paper slip"><div class="slip-head"><span class="d">Runde ${roundNo(r)} · ${fmtDate(r.date)}</span><span class="stamp ${won?'win':'lose'}">${won?'VANDT':'TABT'}</span></div>
     ${subs.map(n=>{const p=r.picks[n];const v=p.hit==='void';return `<div class="leg"><div><span class="who">${nameOf(n)}</span><span class="chip">${p.sport}</span>${v?'<span class="chip" style="color:var(--amber-soft)">VOID</span>':''}<div class="meta">${p.desc}</div></div>
       <span class="odds">${p.odds.toFixed(2)}</span><span class="tick ${v?'p':p.hit?'w':'l'}">${v?'∅':p.hit?'✓':'✗'}</span></div>`;}).join('')}
-    <div class="slip-foot"><span>${legs.length===1?'Single':legs.length+'-ling'} · samlet odds <b>${comb.toFixed(2)}</b></span>${r.stake?`<span>${r.stake} kr → <b style="color:${net>=0?'var(--won)':'var(--lost)'}">${net>=0?'+':''}${net.toFixed(0)} kr</b></span>`:''}</div></div>`;
+    <div class="slip-foot"><span>${legs.length===1?'Single':legs.length+'-ling'} · samlet odds <b>${comb.toFixed(2)}</b></span>${r.stake?`<span>${r.stake} kr → <b style="color:${net>=0?'var(--won)':'var(--lost)'}">${net>=0?'+':''}${net.toFixed(0)} kr</b></span>`:''}</div>
+    <div style="padding:0 16px 14px"><button class="btn btn-ghost" style="width:100%" onclick="shareCoupon('${r.id}')">📤 Del kupon som billede</button></div></div>`;
+}
+// Tegner kuponen som et billede (canvas — ingen eksterne libs), til deling i fx Messenger.
+function couponCanvas(r){
+  const subs=PLAYERS.filter(n=>r.picks[n]);
+  const legs=subs.filter(n=>isCounting(r.picks[n]));
+  const won=legs.length&&legs.every(n=>r.picks[n].hit);
+  const net=couponNet(r);
+  const W=720, PAD=36, HEADH=118, LEGH=94, FOOTH=110;
+  const H=HEADH+subs.length*LEGH+FOOTH+PAD;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const ctx=cv.getContext('2d');
+  function roundRect(x,y,w,h,rad){ ctx.beginPath(); ctx.moveTo(x+rad,y); ctx.arcTo(x+w,y,x+w,y+h,rad); ctx.arcTo(x+w,y+h,x,y+h,rad); ctx.arcTo(x,y+h,x,y,rad); ctx.arcTo(x,y,x+w,y,rad); ctx.closePath(); }
+  ctx.fillStyle='#0C1B18'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(243,169,59,.35)'; ctx.lineWidth=3; ctx.strokeRect(6,6,W-12,H-12);
+  ctx.textAlign='left';
+  ctx.fillStyle='#F3A93B'; ctx.font='700 15px Oswald, Arial, sans-serif';
+  ctx.fillText('RONA DEFENCE LEAGUE', PAD, PAD+16);
+  ctx.fillStyle='#EBEEEA'; ctx.font='700 30px Oswald, Arial, sans-serif';
+  ctx.fillText('Runde '+roundNo(r)+' · '+fmtDate(r.date), PAD, PAD+56);
+  ctx.fillStyle='rgba(235,238,234,.6)'; ctx.font='13px "JetBrains Mono", monospace';
+  ctx.fillText((legs.length===1?'Single':legs.length+'-ling')+' · samlet odds '+couponOdds(r).toFixed(2), PAD, PAD+80);
+  let y=HEADH+PAD*0.4;
+  subs.forEach(n=>{
+    const p=r.picks[n]; const v=p.hit==='void';
+    ctx.fillStyle='#EBEEEA'; roundRect(PAD,y,W-PAD*2,LEGH-16,12); ctx.fill();
+    ctx.fillStyle='#131B18'; ctx.font='700 19px Oswald, Arial, sans-serif'; ctx.textAlign='left';
+    ctx.fillText(nameOf(n), PAD+20, y+34);
+    ctx.fillStyle='#5B665F'; ctx.font='13px "JetBrains Mono", monospace';
+    ctx.fillText((p.desc+' · '+p.sport).slice(0,54), PAD+20, y+56);
+    ctx.fillStyle='#5B665F'; ctx.font='700 15px "JetBrains Mono", monospace'; ctx.textAlign='right';
+    ctx.fillText(p.odds.toFixed(2), W-PAD-46, y+40);
+    ctx.font='700 30px Arial, sans-serif';
+    ctx.fillStyle= v?'#C98B2E':p.hit?'#2FA56C':'#DD5147';
+    ctx.fillText(v?'∅':p.hit?'✓':'✗', W-PAD-16, y+48);
+    y+=LEGH;
+  });
+  ctx.textAlign='center';
+  ctx.fillStyle=won?'#2FA56C':'#DD5147'; ctx.font='700 38px Oswald, Arial, sans-serif';
+  ctx.fillText(won?'VANDT! 🎉':'TABT', W/2, y+48);
+  if(r.stake){ ctx.fillStyle='#EBEEEA'; ctx.font='700 18px "JetBrains Mono", monospace';
+    ctx.fillText((net>=0?'+':'')+net.toFixed(0)+' kr · '+r.stake+' kr indsat', W/2, y+80); }
+  return cv;
+}
+function shareCoupon(roundId){
+  const r=S.rounds.find(x=>x.id===roundId); if(!r)return;
+  const cv=couponCanvas(r);
+  cv.toBlob(async blob=>{
+    if(!blob){ toast('Kunne ikke lave billedet — prøv igen.'); return; }
+    const file=new File([blob], 'rona-runde-'+roundNo(r)+'.png', {type:'image/png'});
+    try{
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:'Rona Defence League', text:'Runde '+roundNo(r)});
+        return;
+      }
+    }catch(e){ if(e && e.name==='AbortError') return; }
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast('Billedet er downloadet — del det i Messenger 📎');
+  }, 'image/png');
 }
 
 /* =================== FORM STATE (submission) =================== */
@@ -772,8 +875,12 @@ function renderHome(){
 function seasonTable(){
   const lg=leaguePoints(); const s={};PLAYERS.forEach(n=>s[n]=statsFor(n));
   const {order,ranks}=seasonRanks();
+  const arrows=rankArrows();
+  const arrowHTML=a=>a==='up'?'<span style="color:var(--won)">▲</span>':a==='down'?'<span style="color:var(--lost)">▼</span>':a==='same'?'<span style="color:var(--ink-soft)">—</span>':'';
+  const formColor={win:'var(--won)',loss:'var(--lost)',void:'var(--amber-soft)',na:'var(--ink-soft)'};
+  const formHTML=n=>formGuide(n).map(x=>`<span style="color:${formColor[x.c]}">${x.t}</span>`).join(' ');
   return `<table><tr><th>Spiller</th><th>Point</th><th>Hit%</th><th>TB%</th><th>Netto</th></tr>
-    ${order.map((n)=>`<tr class="${ranks[n]===1?'lead':''}"><td><span class="rankbadge">${ranks[n]}.</span>${nameOf(n)}</td>
+    ${order.map((n)=>`<tr class="${ranks[n]===1?'lead':''}"><td><span class="rankbadge">${ranks[n]}.</span>${arrowHTML(arrows[n])} ${nameOf(n)}<div style="font-size:11px;letter-spacing:2px;margin-top:4px">${formHTML(n)}</div></td>
       <td class="pts">${lg[n]%1?lg[n].toFixed(1):lg[n]}</td><td>${Math.round(s[n].hitrate*100)}%</td>
       <td>${Math.round(s[n].tb)}%</td><td>${s[n].net>=0?'+':''}${s[n].net.toFixed(2)}</td></tr>`).join('')}</table>`;
 }
@@ -835,11 +942,22 @@ function allLiveFixturesFlat(){ const out=[]; liveSports().forEach(k=>((S.fixtur
 function liveLeaguesFor(sportKey){ return [...new Set(((S.fixturesLive&&S.fixturesLive[sportKey])||[]).map(f=>f.league.name))]; }
 function liveFixturesFor(sportKey,leagueName){ return ((S.fixturesLive&&S.fixturesLive[sportKey])||[]).filter(f=>f.league.name===leagueName).sort((a,b)=>a.date.localeCompare(b.date)); }
 function fmtKickoff(iso){ try{ return new Date(iso).toLocaleString('da-DK',{weekday:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}); }catch(e){ return iso; } }
+function fmtUpdatedAt(ts){
+  if(!ts) return '';
+  try{
+    const d=new Date(ts); const now=new Date();
+    const sameDay=d.toDateString()===now.toDateString();
+    const time=d.toLocaleString('da-DK',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'});
+    const day=sameDay?'i dag':d.toLocaleDateString('da-DK',{day:'numeric',month:'numeric',timeZone:'Europe/Copenhagen'});
+    return `Opdateret ${day} kl. ${time}`;
+  }catch(e){ return ''; }
+}
 function liveSectionHTML(){
   const sports=liveSports();
   if(!sports.length) return '';
   const firstSport=sports[0]; const leagues=liveLeaguesFor(firstSport);
-  return `<div class="field"><label class="fld">📡 Kommende kampe (live)</label>
+  const updated=fmtUpdatedAt(S.fixturesLive&&S.fixturesLive.updatedAt);
+  return `<div class="field"><label class="fld">📡 Kommende kampe (live)${updated?` · <span style="text-transform:none;letter-spacing:0">${updated}</span>`:''}</label>
     <div class="two">
       <select id="liveSportSel">${sports.map(s=>`<option value="${s}">${LIVE_SPORT_LABELS[s]}</option>`).join('')}</select>
       <select id="liveLeagueSel">${leagues.map(l=>`<option>${l}</option>`).join('')}</select>
@@ -995,7 +1113,7 @@ async function lockRound(){
   const r=openRound(); if(!r)return; r.absent=r.absent||[];
   const prev=S.rounds.filter(x=>x!==r).sort((a,b)=>a.date.localeCompare(b.date)).pop();
   const warns=[];
-  PLAYERS.forEach(n=>{
+  PLAYERS.filter(isActivePlayer).forEach(n=>{
     if(r.absent.includes(n)){
       if(prev && (prev.absent||[]).includes(n)){
         const wasYellow=S.disc.players[n].yellow;
@@ -1069,7 +1187,7 @@ function showRevealOverlay(r, monthNote){
   };
   const finish=()=>{
     const net=couponNet(r);
-    ov.querySelector('#revResult').innerHTML='<div style="font-family:Oswald,sans-serif;font-size:36px;font-weight:700;color:'+(won?'#2FA56C':'#DD5147')+'">'+(won?'VANDT! 🎉':'TABT')+'</div>'+(r.stake?'<div style="font-family:JetBrains Mono,monospace;color:#EBEEEA;margin-top:4px">'+(net>=0?'+':'')+net.toFixed(0)+' kr</div>':'')+(monthNote?'<div style="font-size:12px;color:#C98B2E;margin-top:14px;max-width:300px;line-height:1.5">📅 '+monthNote+'</div>':'')+'<button class="btn btn-dark" style="margin-top:18px" onclick="document.getElementById(\'revealOverlay\').remove();go(\'home\')">Videre</button>';
+    ov.querySelector('#revResult').innerHTML='<div style="font-family:Oswald,sans-serif;font-size:36px;font-weight:700;color:'+(won?'#2FA56C':'#DD5147')+'">'+(won?'VANDT! 🎉':'TABT')+'</div>'+(r.stake?'<div style="font-family:JetBrains Mono,monospace;color:#EBEEEA;margin-top:4px">'+(net>=0?'+':'')+net.toFixed(0)+' kr</div>':'')+(monthNote?'<div style="font-size:12px;color:#C98B2E;margin-top:14px;max-width:300px;line-height:1.5">📅 '+monthNote+'</div>':'')+'<button class="btn btn-ghost" style="margin-top:18px" onclick="shareCoupon(\''+r.id+'\')">📤 Del kupon som billede</button>'+'<button class="btn btn-dark" style="margin-top:8px" onclick="document.getElementById(\'revealOverlay\').remove();go(\'home\')">Videre</button>';
     if(won)confettiBurst(ov);
   };
   setTimeout(reveal,450);
@@ -1161,7 +1279,7 @@ function applyMonthClose(key){   // ren bogføring: taber-bøde, frikendelse, be
   S.payments[key]||={};
   const rs=settledRounds().filter(r=>r.date.slice(0,7)===key); const mls=monthLosers(rs); const frik=monthFrikendt(key);
   mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber – frikendt via power-up (bøde slettet)'}); return; } S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:nextMonthKey(key),srcMonth:key,ts:Date.now()}); S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber · '+x.penalty+' kr'}); });
-  PLAYERS.forEach(n=> obligation(n, !!S.payments[key]['fee_'+n], "betaling ikke modtaget"));
+  PLAYERS.filter(isActivePlayer).forEach(n=> obligation(n, !!S.payments[key]['fee_'+n], "betaling ikke modtaget"));
   S.payments[key].closed=true;
   const[yy,mm]=key.split('-'); const txt=mls.map(x=>nameOf(x.name)+(frik.has(x.name)?' (frikendt)':' (+'+x.penalty+' kr)')).join(', ');
   return MONTHS_DA[+mm-1]+" "+yy+" er afgjort. "+(mls.length?(mls.length>1?"Månedens tabere: ":"Månedens taber: ")+txt+". ":"")+"Ny måned er åben — husk indbetaling.";
@@ -1238,7 +1356,7 @@ function adminBody(){
       ${(S.balanceAdj||0)!==0?`<button class="btn btn-ghost-d" style="margin-top:8px" onclick="resetBalanceAdj()">Nulstil justering</button>`:''}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">✏️ Rediger runder & kuponer</div>
       <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 10px">Ret en tastefejl i en kupon, et resultat, odds, indsats — eller sæt den faktiske udbetaling (fx ved odds-boost).</p>
-      ${S.rounds.length?S.rounds.slice().reverse().map(x=>`<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">Runde ${roundNo(x)} · ${fmtDate(x.date)}</div><div class="desc">${x.status==='settled'?(couponOdds(x)?couponOdds(x).toFixed(2)+' i samlet odds · net '+(couponNet(x)>=0?'+':'')+couponNet(x).toFixed(0)+' kr':'ingen ben'):x.status==='open'?'åben':'låst'}</div></div><button class="chk" onclick="adminEditRound(${x.id})">Rediger</button></div>`).join(''):'<p style="font-size:13px;color:var(--ink-soft)">Ingen runder endnu.</p>'}</div>
+      ${S.rounds.length?S.rounds.slice().reverse().map(x=>`<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">Runde ${roundNo(x)} · ${fmtDate(x.date)}</div><div class="desc">${x.status==='settled'?(couponOdds(x)?couponOdds(x).toFixed(2)+' i samlet odds · net '+(couponNet(x)>=0?'+':'')+couponNet(x).toFixed(0)+' kr':'ingen ben'):x.status==='open'?'åben':'låst'}</div></div><button class="chk" onclick="adminEditRound('${x.id}')">Rediger</button></div>`).join(''):'<p style="font-size:13px;color:var(--ink-soft)">Ingen runder endnu.</p>'}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🗑️ Bøder & gebyrer</div>
       <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 10px">Fjern en bøde, hvis den er forkert — fx hvis nogen faktisk har betalt, eller en taber-bøde ikke skal tælle.</p>
       ${S.fines.length?S.fines.slice().reverse().map(f=>`<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">${nameOf(f.player)} · ${f.amount} kr</div><div class="desc">${f.kind==='taber'?'månedens taber':f.kind==='rødt'?'rødt kort':f.kind==='buyin'?'buy-in':f.kind==='ferie'?'feriegebyr':f.kind} · forfalder ${f.dueMonth||'—'}${f.paid?' · betalt':''}</div></div><button class="chk" style="color:var(--lost)" onclick="adminDeleteFine('${f.id}')">Slet</button></div>`).join(''):'<p style="font-size:13px;color:var(--ink-soft)">Ingen bøder lige nu.</p>'}</div>
@@ -1248,7 +1366,8 @@ function adminBody(){
       <div class="btn-row"><button class="btn btn-ghost" onclick="sendNotif('spil')">Manglende spil</button><button class="btn btn-ghost" onclick="sendNotif('betal')">Manglende betaling</button><button class="btn btn-ghost" onclick="sendNotif('lukket')">Kuponen lukket</button><button class="btn btn-ghost" onclick="sendNotif('maaned')">Månedsbesked</button></div></div>
     <div class="paper" style="margin-bottom:14px"><div class="menu-item" onclick="openMore('disc')"><span class="t">Disciplin & kort</span><span class="a">›</span></div></div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Medlemmer · ${PLAYERS.length}</div>
-      <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--ink-soft);margin:6px 0 12px">${PLAYERS.map(nameOf).join(' · ')}</div>
+      ${PLAYERS.map(n=>{const inactive=!isActivePlayer(n);return `<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">${nameOf(n)}${inactive?' <span style="color:var(--ink-soft);font-size:11px">(deaktiveret)</span>':''}</div></div>${n===ADMIN?'':`<button class="chk" style="${inactive?'':'color:var(--lost)'}" onclick="toggleMemberActive('${n}')">${inactive?'Aktivér':'Deaktivér'}</button>`}</div>`;}).join('')}
+      <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 12px">Deaktivering spærrer login og stopper nye disciplin-kort for manglende spil/betaling — historik og point rører vi ikke.</p>
       <div class="field"><label class="fld">Tilføj nyt medlem</label><input type="text" id="newMemberName" maxlength="18" placeholder="Navn" style="margin-bottom:6px"><input type="email" id="newMemberEmail" placeholder="E-mail (til login)"></div>
       <p style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Buy-in sættes automatisk til det største samlede bidrag lige nu${buyinNow>0?' = <b>'+buyinNow+' kr</b>':''} (indskud + bøder, alt inkl.), så ingen køber sig billigt ind. Pointskalaen vokser selv med antallet. Ved 5+ spilles kuponen som system-tripler. Personen sætter selv sin adgangskode ved første login på »Opret adgangskode her« med den e-mail, du skriver her.</p>
       <button class="btn btn-dark" onclick="addMember()">Tilføj medlem</button></div>
@@ -1269,6 +1388,23 @@ async function addMember(){
   try{ await invitesCol.doc(email).set({name, isAdmin:false, used:false}); }catch(e){ console.error(e); toast("Kunne ikke oprette login-invitationen — prøv igen."); return; }
   await saveState(); moreView='admin'; renderAll(); go('more');
   toast(name+" er tilføjet 🎉\n\n"+name+" opretter selv sin adgangskode på login-skærmen (»Opret adgangskode her«) med e-mailen "+email+"."+(buyin>0?"\n\nBuy-in: "+buyin+" kr (matcher største samlede bidrag). Det står nu under Penge → Bøder & gebyrer som »mangler«, indtil "+name+" har betalt.":""));
+}
+async function toggleMemberActive(name){
+  if(!isAdmin()||name===ADMIN)return;
+  const activeNow=isActivePlayer(name); // true = medlemmet er aktivt lige nu, så handlingen er at DEAKTIVERE
+  confirmModal(activeNow?`Deaktivér ${nameOf(name)}? Personens login spærres, og der kommer ikke flere kort for manglende spil/betaling. Historik og point bevares.`:`Aktivér ${nameOf(name)} igen? Login åbnes, og personen tæller med i kommende runder/betalinger igen.`, async ()=>{
+    let inviteFound=true;
+    try{
+      const q=await invitesCol.where('name','==',name).limit(1).get();
+      inviteFound=!q.empty;
+      if(inviteFound) await q.docs[0].ref.set({active:!activeNow},{merge:true});
+    }catch(e){ console.error(e); toast("Kunne ikke ændre login-status — prøv igen."); return; }
+    S.inactivePlayers=S.inactivePlayers||[];
+    if(activeNow){ if(!S.inactivePlayers.includes(name)) S.inactivePlayers.push(name); }
+    else S.inactivePlayers=S.inactivePlayers.filter(x=>x!==name);
+    await saveState(); renderAll();
+    toast((activeNow?nameOf(name)+" er deaktiveret.":nameOf(name)+" er aktiveret igen.")+(inviteFound?"":" (Ingen login-invitation fundet endnu — kun spil/betaling er slået fra.)"));
+  }, activeNow?"Deaktivér":"Aktivér");
 }
 function hasPower(name,type){ return (S.power.arsenal[name]||[]).includes(type); }
 function expFor(name){
@@ -1951,6 +2087,10 @@ auth.onAuthStateChanged(async user=>{
   try{ const snap=await invitesCol.doc(email).get(); if(snap.exists)inv=snap.data(); }catch(e){ console.error(e); }
   if(!inv||!inv.name){
     document.getElementById('loginErr').textContent='Din konto er ikke sat op som klubmedlem endnu — kontakt admin.';
+    await auth.signOut(); return;
+  }
+  if(inv.active===false){
+    document.getElementById('loginErr').textContent='Din konto er deaktiveret — kontakt admin.';
     await auth.signOut(); return;
   }
   MY_NAME=inv.name;
