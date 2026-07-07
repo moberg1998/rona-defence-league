@@ -8,16 +8,27 @@ const BASE = 'https://v3.football.api-sports.io';
 const LEAGUES = [
   { id: 119, name: 'Superliga' },
   { id: 39, name: 'Premier League' },
+  { id: 40, name: 'Championship' },
+  { id: 41, name: 'League One' },
+  { id: 42, name: 'League Two' },
   { id: 140, name: 'La Liga' },
+  { id: 78, name: 'Bundesliga' },
+  { id: 79, name: '2. Bundesliga' },
+  { id: 135, name: 'Serie A' },
+  { id: 136, name: 'Serie B' },
+  { id: 61, name: 'Ligue 1' },
+  { id: 62, name: 'Ligue 2' },
   { id: 2, name: 'Champions League' },      // inkl. kvalifikation — API-Sports bruger samme liga-id, kun "round" skifter
   { id: 3, name: 'Europa League' },         // inkl. kvalifikation
   { id: 848, name: 'Conference League' },   // inkl. kvalifikation
   { id: 1, name: 'VM' },
 ];
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
-// billige (2/dag), men ÉT odds-opslag pr. kamp kan løbe op på en dag med mange kampe — derfor et
-// loft her også, prioriteret efter hvilke kampe der starter først.
-const MAX_ODDS_LOOKUPS = 25;
+// billige (2/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
+// koden). Det eneste, der vokser med flere ligaer, er odds-opslag (ét pr. relevant kamp), derfor et
+// loft her, prioriteret efter hvilke kampe der starter først. Løftet lidt (25→40) efter udvidelsen
+// til alle de store europæiske ligaer — 2+40=42 opslag/dag, stadig under halvdelen af kvoten.
+const MAX_ODDS_LOOKUPS = 40;
 
 export async function fetchFootball(apiKey) {
   const apiGet = makeApiSportsGet(apiKey);
