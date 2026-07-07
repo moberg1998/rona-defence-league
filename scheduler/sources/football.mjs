@@ -1,8 +1,7 @@
 // Fodbold via API-Sports (v3.football.api-sports.io).
 // Fulgte ligaer — udvid frit med flere API-Sports liga-id'er efter behov (find dem via
 // GET /leagues?country=... eller /leagues?id=... med samme API-nøgle).
-import { TZ, makeApiSportsGet, pickMatchOdds, fixturesForDate } from './shared.mjs';
-import { DateTime } from 'luxon';
+import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays } from './shared.mjs';
 
 const BASE = 'https://v3.football.api-sports.io';
 const LEAGUES = [
@@ -53,11 +52,15 @@ const LEAGUES = [
   { id: 253, name: 'Major League Soccer' }, // USA/Canada
   { id: 345, name: 'Czech Liga' },          // Tjekkiet
 ];
+// Runderne spilles i weekenden — hent 5 dage frem (i dag + 4), så BÅDE lørdags- og søndagskampe
+// er synlige nogle dage i forvejen, ikke kun "i dag/i morgen". Rammer gratis-planens datovindue et
+// loft midt i ugen, falder de yderste dage bare væk uden at vælte kørslen (se fixturesForNextDays).
+const FETCH_DAYS = 5;
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
-// billige (2/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
+// billige (5/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
 // koden). Det eneste, der vokser med flere ligaer, er odds-opslag (ét pr. relevant kamp), derfor et
-// loft her, prioriteret efter hvilke kampe der starter først. Løftet lidt (25→40) efter udvidelsen
-// til alle de store europæiske ligaer — 2+40=42 opslag/dag, stadig under halvdelen af kvoten.
+// loft her, prioriteret efter hvilke kampe der starter først. 5+40=45 opslag/dag, stadig under
+// halvdelen af kvoten.
 const MAX_ODDS_LOOKUPS = 40;
 // Når flere ligaer følges end odds-loftet rækker til, får disse top-ligaer FØRSTE ret til
 // auto-odds (uanset kickoff-tid) — resten af loftet går til de øvrige ligaers tidligste kampe.
@@ -69,16 +72,10 @@ export async function fetchFootball(apiKey) {
   const leagueIds = new Set(LEAGUES.map(l => l.id));
   const leagueName = id => LEAGUES.find(l => l.id === id)?.name || String(id);
 
-  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+  const res = await fixturesForNextDays(apiGet, BASE, '/fixtures', FETCH_DAYS, 'Fodbold');
+  if (!res.ok) throw new Error(`Fodbold: kunne ikke hente nogen af de næste ${FETCH_DAYS} dage.`);
 
-  const [resToday, resTomorrow] = await Promise.all([
-    fixturesForDate(apiGet, BASE, '/fixtures', today, 'Fodbold'),
-    fixturesForDate(apiGet, BASE, '/fixtures', tomorrow, 'Fodbold'),
-  ]);
-  if (!resToday.ok && !resTomorrow.ok) throw new Error(`Fodbold: kunne hverken hente ${today} eller ${tomorrow}.`);
-
-  const relevant = [...resToday.data, ...resTomorrow.data].filter(f => leagueIds.has(f.league.id));
+  const relevant = res.data.filter(f => leagueIds.has(f.league.id));
   // Sortér listen der VISES efter kickoff (uændret) — men lav en separat prioriteret rækkefølge
   // til odds-opslagene, så top-ligaerne altid får odds først, selvom en lavere liga spiller tidligere.
   relevant.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
@@ -88,7 +85,7 @@ export async function fetchFootball(apiKey) {
     return pa !== pb ? pa - pb : new Date(a.fixture.date) - new Date(b.fixture.date);
   });
   const oddsFixtureIds = new Set(byOddsPriority.slice(0, MAX_ODDS_LOOKUPS).map(f => f.fixture.id));
-  console.log(`Fodbold: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
+  console.log(`Fodbold: ${relevant.length} kamp(e) i de fulgte ligaer de næste ${FETCH_DAYS} dage.`);
 
   const out = [];
   let oddsLookups = 0;

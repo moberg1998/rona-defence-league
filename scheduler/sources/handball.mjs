@@ -3,8 +3,7 @@
 // er fladt (g.id, g.date, g.league, g.teams — ikke g.fixture.*), og odds-opslag pr. kamp bruger
 // parameteren "game" (ikke "fixture").
 // Fulgte ligaer — udvid frit (find liga-id'er via /leagues?country=... med samme nøgle).
-import { TZ, makeApiSportsGet, pickMatchOdds, fixturesForDate } from './shared.mjs';
-import { DateTime } from 'luxon';
+import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays } from './shared.mjs';
 
 const BASE = 'https://v1.handball.api-sports.io';
 const LEAGUES = [
@@ -20,6 +19,7 @@ const LEAGUES = [
   { id: 75, name: 'REMA 1000-ligaen' },  // Norge — bekræftet via find-league-ids.mjs
   { id: 113, name: 'Handbollsligan' },   // Sverige — bekræftet via find-league-ids.mjs
 ];
+const FETCH_DAYS = 5; // hent en hel weekend et par dage i forvejen — se football.mjs
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchHandball(apiKey) {
@@ -27,18 +27,12 @@ export async function fetchHandball(apiKey) {
   const leagueIds = new Set(LEAGUES.map(l => l.id));
   const leagueName = id => LEAGUES.find(l => l.id === id)?.name || String(id);
 
-  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+  const res = await fixturesForNextDays(apiGet, BASE, '/games', FETCH_DAYS, 'Håndbold');
+  if (!res.ok) throw new Error(`Håndbold: kunne ikke hente nogen af de næste ${FETCH_DAYS} dage.`);
 
-  const [resToday, resTomorrow] = await Promise.all([
-    fixturesForDate(apiGet, BASE, '/games', today, 'Håndbold'),
-    fixturesForDate(apiGet, BASE, '/games', tomorrow, 'Håndbold'),
-  ]);
-  if (!resToday.ok && !resTomorrow.ok) throw new Error(`Håndbold: kunne hverken hente ${today} eller ${tomorrow}.`);
-
-  const relevant = [...resToday.data, ...resTomorrow.data].filter(g => leagueIds.has(g.league.id));
+  const relevant = res.data.filter(g => leagueIds.has(g.league.id));
   relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
-  console.log(`Håndbold: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
+  console.log(`Håndbold: ${relevant.length} kamp(e) i de fulgte ligaer de næste ${FETCH_DAYS} dage.`);
 
   const out = [];
   let oddsLookups = 0;

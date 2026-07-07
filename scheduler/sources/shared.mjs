@@ -2,6 +2,8 @@
 // Hver kilde-fil under scheduler/sources/ er et selvstændigt modul, der eksporterer én
 // async funktion (fx fetchFootball(apiKey)) — tilføj/fjern en sportsgren ved kun at
 // røre ved dens egen fil + de to steder i fetch-fixtures.mjs, der lister kilderne.
+import { DateTime } from 'luxon';
+
 export const TZ = 'Europe/Copenhagen';
 export const PREFERRED_BOOKMAKERS = ['Bet365', '10Bet', 'Unibet'];
 
@@ -41,6 +43,17 @@ export async function fixturesForDate(apiGet, base, resource, date, label) {
     console.warn(`${label} ${resource}?date=${date} fejlede (springer over): ${e.message}`);
     return { ok: false, data: [] };
   }
+}
+
+// Henter kampe for de næste `days` dage (i dag + days-1 frem), så en hel weekend er synlig
+// nogle dage i forvejen — ikke kun "i dag/i morgen". Runderne spilles i weekenden, så folk skal
+// kunne se BÅDE lørdags- og søndagskampe et par dage før. Hver dato fejler uafhængigt af de andre
+// (se fixturesForDate) — rammer gratis-planens datovindue et loft et sted i midten af ugen, falder
+// den bare tilbage til færre dage i stedet for at vælte hele kørslen.
+export async function fixturesForNextDays(apiGet, base, resource, days, label) {
+  const dates = Array.from({ length: days }, (_, i) => DateTime.now().setZone(TZ).plus({ days: i }).toFormat('yyyy-MM-dd'));
+  const results = await Promise.all(dates.map(d => fixturesForDate(apiGet, base, resource, d, label)));
+  return { ok: results.some(r => r.ok), data: results.flatMap(r => r.data) };
 }
 
 // Finder et "hvem vinder"-marked (2- eller 3-vejs) blandt de foretrukne bookmakere.

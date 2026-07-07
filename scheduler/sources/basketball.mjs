@@ -1,8 +1,7 @@
 // Basketball via API-Sports (v1.basketball.api-sports.io).
 // Samme flade kamp-struktur og "game"-parameter til odds som håndbold-modulet.
 // Fulgte ligaer — udvid frit (find liga-id'er via /leagues?search=... med samme nøgle).
-import { TZ, makeApiSportsGet, pickMatchOdds, fixturesForDate } from './shared.mjs';
-import { DateTime } from 'luxon';
+import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays } from './shared.mjs';
 
 const BASE = 'https://v1.basketball.api-sports.io';
 const LEAGUES = [
@@ -13,6 +12,7 @@ const LEAGUES = [
   { id: 281, name: 'World Cup' },
   { id: 194, name: 'EuroCup' },   // Euroleagues 2. niveau — bekræftet via find-league-ids.mjs
 ];
+const FETCH_DAYS = 5; // hent en hel weekend et par dage i forvejen — se football.mjs
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchBasketball(apiKey) {
@@ -20,18 +20,12 @@ export async function fetchBasketball(apiKey) {
   const leagueIds = new Set(LEAGUES.map(l => l.id));
   const leagueName = id => LEAGUES.find(l => l.id === id)?.name || String(id);
 
-  const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+  const res = await fixturesForNextDays(apiGet, BASE, '/games', FETCH_DAYS, 'Basketball');
+  if (!res.ok) throw new Error(`Basketball: kunne ikke hente nogen af de næste ${FETCH_DAYS} dage.`);
 
-  const [resToday, resTomorrow] = await Promise.all([
-    fixturesForDate(apiGet, BASE, '/games', today, 'Basketball'),
-    fixturesForDate(apiGet, BASE, '/games', tomorrow, 'Basketball'),
-  ]);
-  if (!resToday.ok && !resTomorrow.ok) throw new Error(`Basketball: kunne hverken hente ${today} eller ${tomorrow}.`);
-
-  const relevant = [...resToday.data, ...resTomorrow.data].filter(g => leagueIds.has(g.league.id));
+  const relevant = res.data.filter(g => leagueIds.has(g.league.id));
   relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
-  console.log(`Basketball: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
+  console.log(`Basketball: ${relevant.length} kamp(e) i de fulgte ligaer de næste ${FETCH_DAYS} dage.`);
 
   const out = [];
   let oddsLookups = 0;

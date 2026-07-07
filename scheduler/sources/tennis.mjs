@@ -1,6 +1,6 @@
 // Tennis (ATP/WTA + Grand Slams) via OddsPapi — IKKE API-Sports (tennis er ikke inkluderet der).
 // Samme sparsommelige strategi som cs2.mjs, da de deler den samme kontobrede månedlige grænse:
-//  - Kun i dag + i morgen.
+//  - 5 dage frem (i dag + 4) — ét /v4/fixtures-kald uanset vinduets størrelse, ingen ekstra kvote.
 //  - sportId for tennis er ikke dokumenteret et fast sted, så den slås op via /v4/sports og caches.
 //  - Deltager-/turneringsnavne caches i Firestore, genhentes kun hver ~6. dag.
 //  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag.
@@ -10,6 +10,7 @@ import { TZ } from './shared.mjs';
 import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
+const FETCH_DAYS = 5;
 const MAX_ODDS_LOOKUPS = 8;
 const INCLUDE_KEYWORDS = /\batp\b|\bwta\b|grand slam|australian open|roland garros|french open|wimbledon|us open/i;
 const EXCLUDE_KEYWORDS = /itf|challenger|qualif|juniors?|boys|girls|exhibition|legends|seniors|wheelchair|doubles/i;
@@ -26,11 +27,11 @@ export async function fetchTennis(apiKey, cacheRef) {
 
   const sportId = await resolveTennisSportId(apiKey, cacheRef);
   const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
-  const tomorrow = DateTime.now().setZone(TZ).plus({ days: 1 }).toFormat('yyyy-MM-dd');
+  const lastDay = DateTime.now().setZone(TZ).plus({ days: FETCH_DAYS - 1 }).toFormat('yyyy-MM-dd');
 
-  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId, from: today, to: tomorrow, hasOdds: true });
+  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId, from: today, to: lastDay, hasOdds: true });
   let fixtures = asList(fixturesJson);
-  console.log(`Tennis: ${fixtures.length} kamp(e) fundet (${today} → ${tomorrow}), før turneringsfilter.`);
+  console.log(`Tennis: ${fixtures.length} kamp(e) fundet (${today} → ${lastDay}), før turneringsfilter.`);
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'tennis_participants', 6, async () => oddsPapiGet(apiKey, '/v4/participants', { sportId }));

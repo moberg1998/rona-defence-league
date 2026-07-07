@@ -1379,8 +1379,22 @@ async function addMember(){
   const inp=document.getElementById('newMemberName'); const name=(inp&&inp.value||'').trim();
   const emailInp=document.getElementById('newMemberEmail'); const email=(emailInp&&emailInp.value||'').trim().toLowerCase();
   if(!name)return;
-  if(PLAYERS.some(n=>n.toLowerCase()===name.toLowerCase())){ toast("Det navn er allerede med."); return; }
   if(!email){ toast("Skriv medlemmets e-mail, så personen kan oprette sit eget login."); return; }
+  const existing=PLAYERS.some(n=>n.toLowerCase()===name.toLowerCase());
+  if(existing){
+    // Navnet er allerede i truppen (fx tilføjet direkte til spillerlisten uden en rigtig
+    // login-invitation) — opret bare login-invitationen for det navn, uden at duplikere
+    // spilleren eller lægge et nyt buy-in oveni.
+    let already=null;
+    try{ const snap=await invitesCol.doc(email).get(); already=snap.exists?snap.data():null; }
+    catch(e){ console.error(e); toast("Kunne ikke tjekke e-mailen — prøv igen."); return; }
+    if(already && already.used){ toast("Den e-mail har allerede en aktiv konto."); return; }
+    try{ await invitesCol.doc(email).set({name, isAdmin:false, used:false}); }
+    catch(e){ console.error(e); toast("Kunne ikke oprette login-invitationen — prøv igen."); return; }
+    inp.value=''; emailInp.value='';
+    toast(name+" har nu fået sin login-invitation 🎉\n\n"+name+" opretter selv sin adgangskode på login-skærmen (»Opret adgangskode her«) med e-mailen "+email+".");
+    return;
+  }
   const cc=contributions(); const buyin=Math.max(0,...PLAYERS.map(n=>cc[n].paid+cc[n].owed));
   PLAYERS.push(name); S.players=PLAYERS.slice();
   S.disc.players[name]={yellow:false,streak:0,reds:0};
