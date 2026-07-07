@@ -26,11 +26,16 @@ export async function fetchCS2(apiKey, cacheRef) {
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'cs2_participants', 6, () => oddsPapiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID }));
-  const tournamentsList = await getCached(cacheRef, 'cs2_tournaments', 6, async () => slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID }))));
-  const majorTournamentIds = new Set(tournamentsList.filter(t => MAJOR_KEYWORDS.test(t.tournamentName || '')).map(t => t.tournamentId));
+  // Filtrerer til store turneringer FØR caching (samme rettelse som tennis.mjs) — så cachen
+  // aldrig risikerer at vokse sig for stor til Firestore, selvom CS2 får flere turneringer over tid.
+  const tournamentsList = await getCached(cacheRef, 'cs2_tournaments', 6, async () => {
+    const all = slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId: CS2_SPORT_ID })));
+    return all.filter(t => MAJOR_KEYWORDS.test(t.tournamentName || ''));
+  });
+  const majorTournamentIds = new Set(tournamentsList.map(t => t.tournamentId));
   const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
 
-  if (majorTournamentIds.size) fixtures = fixtures.filter(fx => majorTournamentIds.has(fx.tournamentId));
+  fixtures = fixtures.filter(fx => majorTournamentIds.has(fx.tournamentId));
   fixtures.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   console.log(`CS2: ${fixtures.length} kamp(e) efter turneringsfilter (store turneringer).`);
 

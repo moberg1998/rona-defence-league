@@ -7,7 +7,19 @@
 //    bare uden auto-udfyldte odds — spilleren taster selv, ligesom den almindelige fallback.
 const BASE = 'https://api.oddspapi.io';
 
+// OddsPapi rammer "rate limited" (429) på opslag, der kommer for stramt efter hinanden — set i en
+// rigtig kørsel (Tennis' mange odds-opslag i træk), hvor svaret bad om 0,1-0,3 sek. ventetid. Én
+// fælles ventetid her (kontobred, ligesom det månedlige loft) holder ALLE OddsPapi-kald med god margin.
+let lastCallAt = 0;
+const MIN_INTERVAL_MS = 500;
+async function throttle() {
+  const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastCallAt = Date.now();
+}
+
 export async function oddsPapiGet(apiKey, path, params) {
+  await throttle();
   const url = new URL(BASE + path);
   url.searchParams.set('apiKey', apiKey);
   Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));

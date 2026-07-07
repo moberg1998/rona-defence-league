@@ -34,15 +34,18 @@ export async function fetchTennis(apiKey, cacheRef) {
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'tennis_participants', 6, async () => oddsPapiGet(apiKey, '/v4/participants', { sportId }));
-  const tournamentsList = await getCached(cacheRef, 'tennis_tournaments', 6, async () => slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId }))));
-  const allowedTournamentIds = new Set(
-    tournamentsList
-      .filter(t => INCLUDE_KEYWORDS.test(t.tournamentName || '') && !EXCLUDE_KEYWORDS.test(t.tournamentName || ''))
-      .map(t => t.tournamentId)
-  );
+  // Filtrerer til ATP/WTA/Grand Slam FØR caching — ikke bagefter. Tennis har tusindvis af
+  // turneringer (ITF/Challenger/juniorer verden over), og selv efter slimTournaments() var den
+  // fulde, ufiltrerede liste for stor til ét Firestore-dokument (ramte 1.5 MB, loft er 1 MB).
+  // Ved kun at gemme den lille, allerede-filtrerede delmængde er den slags nu udelukket.
+  const tournamentsList = await getCached(cacheRef, 'tennis_tournaments', 6, async () => {
+    const all = slimTournaments(asList(await oddsPapiGet(apiKey, '/v4/tournaments', { sportId })));
+    return all.filter(t => INCLUDE_KEYWORDS.test(t.tournamentName || '') && !EXCLUDE_KEYWORDS.test(t.tournamentName || ''));
+  });
+  const allowedTournamentIds = new Set(tournamentsList.map(t => t.tournamentId));
   const tournamentName = id => tournamentsList.find(t => t.tournamentId === id)?.tournamentName;
 
-  if (allowedTournamentIds.size) fixtures = fixtures.filter(fx => allowedTournamentIds.has(fx.tournamentId));
+  fixtures = fixtures.filter(fx => allowedTournamentIds.has(fx.tournamentId));
   fixtures.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   console.log(`Tennis: ${fixtures.length} kamp(e) efter ATP/WTA/Grand Slam-filter.`);
 
