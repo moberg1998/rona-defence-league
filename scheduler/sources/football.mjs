@@ -29,6 +29,10 @@ const LEAGUES = [
 // loft her, prioriteret efter hvilke kampe der starter først. Løftet lidt (25→40) efter udvidelsen
 // til alle de store europæiske ligaer — 2+40=42 opslag/dag, stadig under halvdelen af kvoten.
 const MAX_ODDS_LOOKUPS = 40;
+// Når flere ligaer følges end odds-loftet rækker til, får disse top-ligaer FØRSTE ret til
+// auto-odds (uanset kickoff-tid) — resten af loftet går til de øvrige ligaers tidligste kampe.
+// Udvid listen, når flere store ligaer (Brasilien, Eredivisie osv.) får bekræftede id'er.
+const ODDS_PRIORITY_IDS = new Set([39, 140, 78, 135, 61, 2, 119]); // PL, La Liga, Bundesliga, Serie A, Ligue 1, CL, Superliga
 
 export async function fetchFootball(apiKey) {
   const apiGet = makeApiSportsGet(apiKey);
@@ -45,14 +49,22 @@ export async function fetchFootball(apiKey) {
   if (!resToday.ok && !resTomorrow.ok) throw new Error(`Fodbold: kunne hverken hente ${today} eller ${tomorrow}.`);
 
   const relevant = [...resToday.data, ...resTomorrow.data].filter(f => leagueIds.has(f.league.id));
+  // Sortér listen der VISES efter kickoff (uændret) — men lav en separat prioriteret rækkefølge
+  // til odds-opslagene, så top-ligaerne altid får odds først, selvom en lavere liga spiller tidligere.
   relevant.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
+  const byOddsPriority = [...relevant].sort((a, b) => {
+    const pa = ODDS_PRIORITY_IDS.has(a.league.id) ? 0 : 1;
+    const pb = ODDS_PRIORITY_IDS.has(b.league.id) ? 0 : 1;
+    return pa !== pb ? pa - pb : new Date(a.fixture.date) - new Date(b.fixture.date);
+  });
+  const oddsFixtureIds = new Set(byOddsPriority.slice(0, MAX_ODDS_LOOKUPS).map(f => f.fixture.id));
   console.log(`Fodbold: ${relevant.length} kamp(e) i de fulgte ligaer for ${today}/${tomorrow}.`);
 
   const out = [];
   let oddsLookups = 0;
   for (const f of relevant) {
     let odds = null;
-    if (oddsLookups < MAX_ODDS_LOOKUPS) {
+    if (oddsFixtureIds.has(f.fixture.id)) {
       try {
         const oddsResp = await apiGet(BASE, '/odds', { fixture: f.fixture.id });
         odds = pickMatchOdds(oddsResp, ['Match Winner']);
