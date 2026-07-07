@@ -2,7 +2,9 @@ name: Fetch live fixtures
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    # 00:00 UTC = kl. 02:00 dansk sommertid (kl. 01:00 om vinteren — GitHub Actions'
+    # cron kender ikke til sommertid, så det rykker sig automatisk en time to gange om året).
+    - cron: '0 0 * * *'
   workflow_dispatch: {}
 
 jobs:

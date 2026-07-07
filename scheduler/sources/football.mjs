@@ -9,7 +9,9 @@ const LEAGUES = [
   { id: 119, name: 'Superliga' },
   { id: 39, name: 'Premier League' },
   { id: 140, name: 'La Liga' },
-  { id: 2, name: 'Champions League' },
+  { id: 2, name: 'Champions League' },      // inkl. kvalifikation — API-Sports bruger samme liga-id, kun "round" skifter
+  { id: 3, name: 'Europa League' },         // inkl. kvalifikation
+  { id: 848, name: 'Conference League' },   // inkl. kvalifikation
   { id: 1, name: 'VM' },
 ];
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
