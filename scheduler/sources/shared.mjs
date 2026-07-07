@@ -10,13 +10,17 @@ export const PREFERRED_BOOKMAKERS = ['Bet365', '10Bet', 'Unibet'];
 // API-Sports' gratis plan tillader kun ca. 10 opslag i minuttet (opdaget ved en rigtig kørsel,
 // hvor Basketballs mange odds-opslag ramte "Too many requests"). Vi holder mindst 6,5 sek. mellem
 // hvert kald til samme bas-URL (sport), med god margin, i stedet for at gætte på et helt konkret tal.
-const lastCallAt = new Map();
+// Kæder alle kald til samme base i én fil-kø (i stedet for bare at tjekke et delt tidsstempel), så
+// samtidige kald (fx fixturesForNextDays' Promise.all over flere datoer) ikke alle sammen kigger på
+// det samme "sidst kaldt"-tidspunkt og glider igennem i en klump — det ramte rent faktisk basketball
+// i en rigtig kørsel ("Too many requests"), selvom throttle-koden så fin ud på papiret.
+const chains = new Map();
 const MIN_INTERVAL_MS = 6500;
-async function throttle(base) {
-  const last = lastCallAt.get(base) || 0;
-  const wait = last + MIN_INTERVAL_MS - Date.now();
-  if (wait > 0) await new Promise(r => setTimeout(r, wait));
-  lastCallAt.set(base, Date.now());
+function throttle(base) {
+  const prev = chains.get(base) || Promise.resolve();
+  const next = prev.then(() => new Promise(r => setTimeout(r, MIN_INTERVAL_MS)));
+  chains.set(base, next);
+  return prev; // vent på DENNE plads i køen, ikke på ventetiden efter — så første kald ikke også venter
 }
 
 // Laver en apiGet-funktion bundet til én bestemt API-nøgle/header — genbruges af hver API-Sports-kilde.

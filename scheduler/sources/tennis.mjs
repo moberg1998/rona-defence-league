@@ -1,8 +1,9 @@
 // Tennis (ATP/WTA + Grand Slams) via OddsPapi — IKKE API-Sports (tennis er ikke inkluderet der).
 // Samme sparsommelige strategi som cs2.mjs, da de deler den samme kontobrede månedlige grænse:
-//  - Så langt frem som muligt (12 dage), filtreret til KUN lør. 12-søn. (isWeekendSlot) — ét
-//    /v4/fixtures-kald uanset vinduets størrelse, ingen ekstra kvote. Filtreres FØR turneringsfilteret,
-//    da tennis kan have 100+ kampe/dag globalt — weekend-filteret skærer det kraftigt ned først.
+//  - Så langt frem som muligt (9 dage — OddsPapis eget loft, se FETCH_DAYS), filtreret til KUN
+//    lør. 12-søn. (isWeekendSlot) — ét /v4/fixtures-kald uanset vinduets størrelse, ingen ekstra
+//    kvote. Filtreres FØR turneringsfilteret, da tennis kan have 100+ kampe/dag globalt —
+//    weekend-filteret skærer det kraftigt ned først.
 //  - sportId for tennis er ikke dokumenteret et fast sted, så den slås op via /v4/sports og caches.
 //  - Deltager-/turneringsnavne caches i Firestore, genhentes kun hver ~6. dag.
 //  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag.
@@ -12,7 +13,9 @@ import { TZ, isWeekendSlot } from './shared.mjs';
 import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
-const FETCH_DAYS = 12;
+// BEKRÆFTET ved en rigtig kørsel: OddsPapi tillader højst 9 dage mellem from/to, når kun sportId
+// er angivet ("must be under 10 days apart") — 10+ giver en "Invalid date range"-fejl.
+const FETCH_DAYS = 9;
 const MAX_ODDS_LOOKUPS = 8;
 const INCLUDE_KEYWORDS = /\batp\b|\bwta\b|grand slam|australian open|roland garros|french open|wimbledon|us open/i;
 const EXCLUDE_KEYWORDS = /itf|challenger|qualif|juniors?|boys|girls|exhibition|legends|seniors|wheelchair|doubles/i;

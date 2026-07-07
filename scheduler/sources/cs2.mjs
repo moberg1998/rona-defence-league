@@ -1,7 +1,8 @@
 // CS2 (Counter-Strike 2) via OddsPapi. Se oddspapi-shared.mjs for baggrund om det stramme,
 // KONTO-BREDE månedlige loft (~250 opslag/md, delt med Tennis) og hvordan vi holder os under det:
-//  - Så langt frem som muligt (12 dage), filtreret til KUN lør. 12-søn. (isWeekendSlot) — dette er
-//    ÉT /v4/fixtures-kald uanset vinduets størrelse, så det koster ikke ekstra af den månedlige kvote.
+//  - Så langt frem som muligt (9 dage — OddsPapis eget loft, se FETCH_DAYS), filtreret til KUN
+//    lør. 12-søn. (isWeekendSlot). Dette er ÉT /v4/fixtures-kald uanset vinduets størrelse, så
+//    det koster ikke ekstra af den månedlige kvote.
 //  - Deltager-/turneringsnavne caches i Firestore og genhentes kun hver ~6. dag.
 //  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag — resten vises
 //    stadig i appen, bare uden auto-udfyldte odds (spilleren taster selv).
@@ -12,7 +13,9 @@ import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } fr
 import { DateTime } from 'luxon';
 
 const CS2_SPORT_ID = 17;
-const FETCH_DAYS = 12;
+// BEKRÆFTET ved en rigtig kørsel: OddsPapi tillader højst 9 dage mellem from/to, når kun sportId
+// er angivet ("must be under 10 days apart") — 10+ giver en "Invalid date range"-fejl.
+const FETCH_DAYS = 9;
 const MAX_ODDS_LOOKUPS = 8;
 const MAJOR_KEYWORDS = /blast|iem|esl pro league|pgl|major|epl/i;
 

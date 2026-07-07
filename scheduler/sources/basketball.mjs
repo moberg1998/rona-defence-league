@@ -12,7 +12,7 @@ const LEAGUES = [
   { id: 281, name: 'World Cup' },
   { id: 194, name: 'EuroCup' },   // Euroleagues 2. niveau — bekræftet via find-league-ids.mjs
 ];
-const FETCH_DAYS = 12; // hent så langt frem som muligt, filtreret til weekend-slottet — se football.mjs
+const FETCH_DAYS = 3; // gratis-planen tillader kun i dag+2 dage — bekræftet, se football.mjs
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchBasketball(apiKey) {

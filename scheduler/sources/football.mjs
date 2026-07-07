@@ -52,17 +52,17 @@ const LEAGUES = [
   { id: 253, name: 'Major League Soccer' }, // USA/Canada
   { id: 345, name: 'Czech Liga' },          // Tjekkiet
 ];
-// Runderne spilles KUN lørdag fra kl. 12 til søndag aften — hent så langt frem som muligt (12 dage),
-// så weekenden er synlig så tidligt i ugen som muligt, og filtrér til KUN de tidsrum bagefter
-// (isWeekendSlot). Gratis-planens datovindue har et ukendt loft et sted ude i fremtiden — rammer vi
-// det, falder de fjerneste dage bare væk uden at vælte kørslen (se fixturesForNextDays). Kvotemæssigt
-// er selve fixtures-opslaget billigt (1 pr. dato), så det er ikke noget problem at forsøge bredt.
-const FETCH_DAYS = 12;
+// Runderne spilles KUN lørdag fra kl. 12 til søndag aften — filtreret bagefter med isWeekendSlot.
+// BEKRÆFTET ved en rigtig kørsel (API-Sports' egen fejlbesked): gratis-planens "date"-opslag virker
+// KUN for i dag + de næste 2 dage ("try from 2026-07-06 to 2026-07-08") — IKKE længere ude, uanset
+// hvor mange dage vi beder om. Der er altså intet at vinde ved at bede om flere end 3 — det skaber
+// bare en bunke afviste kald og larm i loggen. Konkret betyder det: en lørdag/søndag-runde bliver
+// først synlig fra torsdag (2 dage før), medmindre I opgraderer til en betalt API-Sports-plan.
+const FETCH_DAYS = 3;
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
-// billige (op til 12/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret
-// her i koden). Det eneste, der vokser med flere ligaer, er odds-opslag (ét pr. relevant kamp),
-// derfor et loft her, prioriteret efter hvilke kampe der starter først. 12+40=52 opslag/dag,
-// stadig under halvdelen af kvoten.
+// billige (3/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
+// koden). Det eneste, der vokser med flere ligaer, er odds-opslag (ét pr. relevant kamp), derfor et
+// loft her, prioriteret efter hvilke kampe der starter først.
 const MAX_ODDS_LOOKUPS = 40;
 // Når flere ligaer følges end odds-loftet rækker til, får disse top-ligaer FØRSTE ret til
 // auto-odds (uanset kickoff-tid) — resten af loftet går til de øvrige ligaers tidligste kampe.
