@@ -10,43 +10,19 @@ const SPORTS = [
   {
     label: 'FODBOLD',
     base: 'https://v3.football.api-sports.io',
+    // De fleste ligaer fra sidste kørsel er allerede bekræftet og lagt i football.mjs —
+    // kun de uafklarede står tilbage her (MLS' rigtige navn og Tjekkiets liga).
     wanted: [
-      { search: 'Eredivisie', country: 'Netherlands' },
-      { search: 'Eerste Divisie', country: 'Netherlands' },
-      { search: 'Primeira Liga', country: 'Portugal' },
-      { search: 'Liga Portugal 2', country: 'Portugal' },
-      { search: 'Pro League', country: 'Belgium' },
-      { search: 'Super Lig', country: 'Turkey' },
-      { search: 'Premier League', country: 'Russia' },
-      { search: 'Premier League', country: 'Ukraine' },
-      { search: 'Premiership', country: 'Scotland' },
-      { search: 'Bundesliga', country: 'Austria' },
-      { search: 'Super League', country: 'Switzerland' },
-      { search: 'Super League', country: 'Greece' },
-      { search: 'Eliteserien', country: 'Norway' },
-      { search: 'Allsvenskan', country: 'Sweden' },
-      { search: 'Serie A', country: 'Brazil' },
-      { search: 'Liga Profesional', country: 'Argentina' },
-      { search: 'MLS', country: 'USA' },
-      { search: 'Liga MX', country: 'Mexico' },
-      { search: 'J1 League', country: 'Japan' },
-      { search: 'K League 1', country: 'South Korea' },
-      { search: 'Pro League', country: 'Saudi Arabia' },
-      { search: 'Super League', country: 'China' },
-      { search: 'A-League', country: 'Australia' },
-      { search: 'Ekstraklasa', country: 'Poland' },
-      { search: 'Chance Liga', country: 'Czech Republic' },
-      { search: 'HNL', country: 'Croatia' },
-      { search: 'Super Liga', country: 'Serbia' },
-      { search: 'Liga I', country: 'Romania' },
-      { search: 'Segunda', country: 'Spain' },
+      { search: 'Major League Soccer', country: 'USA' },
+      { search: 'Fortuna Liga', country: 'Czech Republic' },
+      { countryOnly: 'Czech-Republic' },   // fallback: viser alle fodboldligaer i landet
     ],
   },
   {
     label: 'HÅNDBOLD',
     base: 'https://v1.handball.api-sports.io',
     wanted: [
-      { search: 'REMA 1000-ligaen', country: 'Norway' },
+      { search: 'Håndboldligaen', country: 'Norway' },   // OBS: API-Sports tillader ikke bindestreg i søgeord (fx "1000-ligaen")
       { search: 'Handbollsligan', country: 'Sweden' },
       { countryOnly: 'Norway' },   // fallback: viser ALLE håndboldligaer i landet, hvis søgeordet ovenfor ikke rammer
       { countryOnly: 'Sweden' },
@@ -71,7 +47,13 @@ async function main() {
       const label = w.countryOnly ? `country=${w.countryOnly}` : `søgning "${w.search}" (forventet: ${w.country})`;
       try {
         const res = await apiGet(sport.base, '/leagues', params);
-        const hits = res.map(r => `id=${r.league.id} · ${r.league.name} · ${r.country?.name || '?'} (${r.league.type || '?'})`);
+        // Fodbold (v3) svarer nested ({league:{id,name,type}, country:{name}}), mens håndbold/
+        // basketball (v1) svarer fladt ({id, name, type, country:{name}}) — håndter begge former.
+        const hits = res.map(r => {
+          const lg = r.league || r;
+          const country = r.country?.name || r.country || lg.country || '?';
+          return `id=${lg.id} · ${lg.name} · ${country} (${lg.type || '?'})`;
+        });
         console.log(`${label}:`);
         if (!hits.length) console.log('  (ingen træffere)');
         else hits.forEach(h => console.log('  ' + h));

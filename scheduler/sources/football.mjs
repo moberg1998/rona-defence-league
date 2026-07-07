@@ -12,6 +12,7 @@ const LEAGUES = [
   { id: 41, name: 'League One' },
   { id: 42, name: 'League Two' },
   { id: 140, name: 'La Liga' },
+  { id: 141, name: 'Segunda División' },
   { id: 78, name: 'Bundesliga' },
   { id: 79, name: '2. Bundesliga' },
   { id: 135, name: 'Serie A' },
@@ -22,6 +23,36 @@ const LEAGUES = [
   { id: 3, name: 'Europa League' },         // inkl. kvalifikation
   { id: 848, name: 'Conference League' },   // inkl. kvalifikation
   { id: 1, name: 'VM' },
+  // Bekræftede via find-league-ids.mjs (id'er slået op mod det rigtige API-Sports-endpoint, ikke gættet):
+  { id: 88, name: 'Eredivisie' },           // Holland
+  { id: 89, name: 'Eerste Divisie' },       // Holland, 2. niveau
+  { id: 94, name: 'Primeira Liga' },        // Portugal
+  { id: 95, name: 'Segunda Liga' },         // Portugal, 2. niveau
+  { id: 144, name: 'Jupiler Pro League' },  // Belgien
+  { id: 203, name: 'Süper Lig' },           // Tyrkiet
+  { id: 235, name: 'Premier League (Rusland)' },
+  { id: 333, name: 'Premier League (Ukraine)' },
+  { id: 179, name: 'Premiership' },         // Skotland
+  { id: 218, name: 'Bundesliga (Østrig)' },
+  { id: 207, name: 'Super League' },        // Schweiz
+  { id: 197, name: 'Super League 1' },      // Grækenland
+  { id: 103, name: 'Eliteserien' },         // Norge
+  { id: 113, name: 'Allsvenskan' },         // Sverige
+  { id: 71, name: 'Série A' },              // Brasilien
+  { id: 128, name: 'Liga Profesional' },    // Argentina
+  { id: 262, name: 'Liga MX' },             // Mexico
+  { id: 98, name: 'J1 League' },            // Japan
+  { id: 292, name: 'K League 1' },          // Sydkorea
+  { id: 307, name: 'Pro League' },          // Saudi-Arabien
+  { id: 169, name: 'Super League' },        // Kina
+  { id: 188, name: 'A-League' },            // Australien
+  { id: 106, name: 'Ekstraklasa' },         // Polen
+  { id: 210, name: 'HNL' },                 // Kroatien
+  { id: 286, name: 'Super Liga' },          // Serbien
+  { id: 283, name: 'Liga I' },              // Rumænien
+  // MLS (rigtige navn "Major League Soccer" gav ingen direkte træffer i søgningen — kun
+  // "MLS All-Star" og "MLS Next Pro", som er de FORKERTE turneringer) og Tjekkiets liga
+  // mangler stadig bekræftede id'er — afventer endnu en kørsel af find-league-ids.mjs.
 ];
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
 // billige (2/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
