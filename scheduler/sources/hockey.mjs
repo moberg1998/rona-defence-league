@@ -1,7 +1,7 @@
 // Ishockey via API-Sports (v1.hockey.api-sports.io).
 // Samme flade kamp-struktur og "game"-parameter til odds som håndbold-/basketball-modulerne.
 // Fulgte ligaer — udvid frit (find liga-id'er via /leagues?search=... med samme nøgle).
-import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays } from './shared.mjs';
+import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays, isWeekendSlot } from './shared.mjs';
 
 const BASE = 'https://v1.hockey.api-sports.io';
 const LEAGUES = [
@@ -9,7 +9,7 @@ const LEAGUES = [
   { id: 12, name: 'Metal Ligaen' },
   { id: 111, name: 'World Championship' },
 ];
-const FETCH_DAYS = 5; // hent en hel weekend et par dage i forvejen — se football.mjs
+const FETCH_DAYS = 12; // hent så langt frem som muligt, filtreret til weekend-slottet — se football.mjs
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchHockey(apiKey) {
@@ -20,9 +20,9 @@ export async function fetchHockey(apiKey) {
   const res = await fixturesForNextDays(apiGet, BASE, '/games', FETCH_DAYS, 'Ishockey');
   if (!res.ok) throw new Error(`Ishockey: kunne ikke hente nogen af de næste ${FETCH_DAYS} dage.`);
 
-  const relevant = res.data.filter(g => leagueIds.has(g.league.id));
+  const relevant = res.data.filter(g => leagueIds.has(g.league.id) && isWeekendSlot(g.date));
   relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
-  console.log(`Ishockey: ${relevant.length} kamp(e) i de fulgte ligaer de næste ${FETCH_DAYS} dage.`);
+  console.log(`Ishockey: ${relevant.length} kamp(e) i de fulgte ligaer, lør. 12-søn. de næste ${FETCH_DAYS} dage.`);
 
   const out = [];
   let oddsLookups = 0;

@@ -3,7 +3,7 @@
 // er fladt (g.id, g.date, g.league, g.teams — ikke g.fixture.*), og odds-opslag pr. kamp bruger
 // parameteren "game" (ikke "fixture").
 // Fulgte ligaer — udvid frit (find liga-id'er via /leagues?country=... med samme nøgle).
-import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays } from './shared.mjs';
+import { makeApiSportsGet, pickMatchOdds, fixturesForNextDays, isWeekendSlot } from './shared.mjs';
 
 const BASE = 'https://v1.handball.api-sports.io';
 const LEAGUES = [
@@ -19,7 +19,7 @@ const LEAGUES = [
   { id: 75, name: 'REMA 1000-ligaen' },  // Norge — bekræftet via find-league-ids.mjs
   { id: 113, name: 'Handbollsligan' },   // Sverige — bekræftet via find-league-ids.mjs
 ];
-const FETCH_DAYS = 5; // hent en hel weekend et par dage i forvejen — se football.mjs
+const FETCH_DAYS = 12; // hent så langt frem som muligt, filtreret til weekend-slottet — se football.mjs
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
 export async function fetchHandball(apiKey) {
@@ -30,9 +30,9 @@ export async function fetchHandball(apiKey) {
   const res = await fixturesForNextDays(apiGet, BASE, '/games', FETCH_DAYS, 'Håndbold');
   if (!res.ok) throw new Error(`Håndbold: kunne ikke hente nogen af de næste ${FETCH_DAYS} dage.`);
 
-  const relevant = res.data.filter(g => leagueIds.has(g.league.id));
+  const relevant = res.data.filter(g => leagueIds.has(g.league.id) && isWeekendSlot(g.date));
   relevant.sort((a, b) => new Date(a.date) - new Date(b.date));
-  console.log(`Håndbold: ${relevant.length} kamp(e) i de fulgte ligaer de næste ${FETCH_DAYS} dage.`);
+  console.log(`Håndbold: ${relevant.length} kamp(e) i de fulgte ligaer, lør. 12-søn. de næste ${FETCH_DAYS} dage.`);
 
   const out = [];
   let oddsLookups = 0;

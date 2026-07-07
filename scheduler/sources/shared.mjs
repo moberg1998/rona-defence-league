@@ -56,6 +56,17 @@ export async function fixturesForNextDays(apiGet, base, resource, days, label) {
   return { ok: results.some(r => r.ok), data: results.flatMap(r => r.data) };
 }
 
+// Runderne spilles kun lørdag eftermiddag/aften til søndag aften — kampe midt i ugen er irrelevante
+// for jeres kuponer, uanset hvor mange dage frem vi henter. Filtrerer til kun lørdag fra kl. 12
+// og hele søndagen (dansk tid), så listen i appen ikke drukner i ligegyldige hverdagskampe.
+export function isWeekendSlot(isoDate) {
+  const d = DateTime.fromISO(isoDate, { zone: 'utc' }).setZone(TZ);
+  if (!d.isValid) return false;
+  if (d.weekday === 6) return d.hour >= 12; // lørdag
+  if (d.weekday === 7) return true;         // hele søndagen
+  return false;
+}
+
 // Finder et "hvem vinder"-marked (2- eller 3-vejs) blandt de foretrukne bookmakere.
 // betNames prøves i rækkefølge, da forskellige sportsgrene navngiver markedet forskelligt.
 // Returnerer null hvis der slet ikke er odds endnu — klienten viser så kampen UDEN odds,

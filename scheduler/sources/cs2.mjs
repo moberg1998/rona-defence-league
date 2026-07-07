@@ -1,18 +1,18 @@
 // CS2 (Counter-Strike 2) via OddsPapi. Se oddspapi-shared.mjs for baggrund om det stramme,
 // KONTO-BREDE månedlige loft (~250 opslag/md, delt med Tennis) og hvordan vi holder os under det:
-//  - 5 dage frem (i dag + 4), så en hel weekend er synlig et par dage i forvejen — dette er ÉT
-//    /v4/fixtures-kald uanset vinduets størrelse, så det koster ikke ekstra af den månedlige kvote.
+//  - Så langt frem som muligt (12 dage), filtreret til KUN lør. 12-søn. (isWeekendSlot) — dette er
+//    ÉT /v4/fixtures-kald uanset vinduets størrelse, så det koster ikke ekstra af den månedlige kvote.
 //  - Deltager-/turneringsnavne caches i Firestore og genhentes kun hver ~6. dag.
 //  - Kun de først-startende MAX_ODDS_LOOKUPS kampe får et rigtigt odds-opslag — resten vises
 //    stadig i appen, bare uden auto-udfyldte odds (spilleren taster selv).
 //  - Begrænset til større turneringer (BLAST/IEM/ESL Pro League/PGL/Major/EPL), så listen er
 //    relevant og ikke drukner i alle verdens småturneringer.
-import { TZ } from './shared.mjs';
+import { TZ, isWeekendSlot } from './shared.mjs';
 import { oddsPapiGet, asList, getCached, extractTwoWayOdds, slimTournaments } from './oddspapi-shared.mjs';
 import { DateTime } from 'luxon';
 
 const CS2_SPORT_ID = 17;
-const FETCH_DAYS = 5;
+const FETCH_DAYS = 12;
 const MAX_ODDS_LOOKUPS = 8;
 const MAJOR_KEYWORDS = /blast|iem|esl pro league|pgl|major|epl/i;
 
@@ -23,8 +23,8 @@ export async function fetchCS2(apiKey, cacheRef) {
   const lastDay = DateTime.now().setZone(TZ).plus({ days: FETCH_DAYS - 1 }).toFormat('yyyy-MM-dd');
 
   const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: lastDay, hasOdds: true });
-  let fixtures = asList(fixturesJson);
-  console.log(`CS2: ${fixtures.length} kamp(e) fundet (${today} → ${lastDay}), før turneringsfilter.`);
+  let fixtures = asList(fixturesJson).filter(fx => isWeekendSlot(fx.startTime || fx.date));
+  console.log(`CS2: ${fixtures.length} kamp(e) fundet (lør. 12-søn., ${today} → ${lastDay}), før turneringsfilter.`);
   if (!fixtures.length) return [];
 
   const participantsMap = await getCached(cacheRef, 'cs2_participants', 6, () => oddsPapiGet(apiKey, '/v4/participants', { sportId: CS2_SPORT_ID }));
