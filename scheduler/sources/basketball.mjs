@@ -11,6 +11,7 @@ const LEAGUES = [
   { id: 197, name: 'EuroBasket' },
   { id: 201, name: 'FIBA Europe Cup' },
   { id: 281, name: 'World Cup' },
+  { id: 194, name: 'EuroCup' },   // Euroleagues 2. niveau — bekræftet via find-league-ids.mjs
 ];
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 

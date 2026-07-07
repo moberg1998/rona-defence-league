@@ -50,9 +50,8 @@ const LEAGUES = [
   { id: 210, name: 'HNL' },                 // Kroatien
   { id: 286, name: 'Super Liga' },          // Serbien
   { id: 283, name: 'Liga I' },              // Rumænien
-  // MLS (rigtige navn "Major League Soccer" gav ingen direkte træffer i søgningen — kun
-  // "MLS All-Star" og "MLS Next Pro", som er de FORKERTE turneringer) og Tjekkiets liga
-  // mangler stadig bekræftede id'er — afventer endnu en kørsel af find-league-ids.mjs.
+  { id: 253, name: 'Major League Soccer' }, // USA/Canada
+  { id: 345, name: 'Czech Liga' },          // Tjekkiet
 ];
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
 // billige (2/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i

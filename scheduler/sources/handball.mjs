@@ -17,6 +17,8 @@ const LEAGUES = [
   { id: 145, name: 'EHF European League' },
   { id: 177, name: 'European Championship' },
   { id: 153, name: 'World Championship' },
+  { id: 75, name: 'REMA 1000-ligaen' },  // Norge — bekræftet via find-league-ids.mjs
+  { id: 113, name: 'Handbollsligan' },   // Sverige — bekræftet via find-league-ids.mjs
 ];
 const MAX_ODDS_LOOKUPS = 25; // API-Sports gratis-plan: ~100 opslag/dag pr. sport — se football.mjs
 
