@@ -7,11 +7,13 @@
 //    bare uden auto-udfyldte odds — spilleren taster selv, ligesom den almindelige fallback.
 const BASE = 'https://api.oddspapi.io';
 
-// OddsPapi rammer "rate limited" (429) på opslag, der kommer for stramt efter hinanden — set i en
-// rigtig kørsel (Tennis' mange odds-opslag i træk), hvor svaret bad om 0,1-0,3 sek. ventetid. Én
-// fælles ventetid her (kontobred, ligesom det månedlige loft) holder ALLE OddsPapi-kald med god margin.
+// OddsPapi rammer "rate limited" (429) på opslag, der kommer for stramt efter hinanden. 500ms var
+// ikke nok margin i praksis — en rigtig kørsel ramte stadig 429 på selve FØRSTE Tennis-kald efter
+// CS2, med fejlteksten "wait 0.50 seconds" (dvs. vores 500ms-mellemrum lå lige på kanten af deres
+// reelle grænse). Sat op til 1000ms for solid margin — koster kun nogle få ekstra sekunder i alt
+// pr. kørsel, langt fra noget problem for den månedlige kvote.
 let lastCallAt = 0;
-const MIN_INTERVAL_MS = 500;
+const MIN_INTERVAL_MS = 1000;
 async function throttle() {
   const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
   if (wait > 0) await new Promise(r => setTimeout(r, wait));
