@@ -7,26 +7,32 @@
 //    bare uden auto-udfyldte odds — spilleren taster selv, ligesom den almindelige fallback.
 const BASE = 'https://api.oddspapi.io';
 
-// OddsPapi rammer "rate limited" (429) på opslag, der kommer for stramt efter hinanden. 500ms var
-// ikke nok margin i praksis — en rigtig kørsel ramte stadig 429 på selve FØRSTE Tennis-kald efter
-// CS2, med fejlteksten "wait 0.50 seconds" (dvs. vores 500ms-mellemrum lå lige på kanten af deres
-// reelle grænse). Sat op til 1000ms for solid margin — koster kun nogle få ekstra sekunder i alt
-// pr. kørsel, langt fra noget problem for den månedlige kvote.
+// OddsPapi rammer "rate limited" (429). At gætte på et fast mellemrum mellem vores egne kald
+// virkede ikke — at fordoble ventetiden fra 500ms til 1000ms ændrede stort set intet ved den
+// ekstra ventetid, OddsPapi bad om (0,50 → 0,52 sek.), så grænsen hænger tilsyneladende ikke bare
+// sammen med vores egen kaldshastighed (måske et delt loft på tværs af GitHub Actions' IP-område).
+// Løsningen: respektér i stedet serverens eget "retryMs"/"retryAfter" fra selve 429-svaret, og
+// prøv kaldet igen bagefter — det virker uanset den bagvedliggende årsag.
 let lastCallAt = 0;
-const MIN_INTERVAL_MS = 1000;
+const MIN_INTERVAL_MS = 500;
 async function throttle() {
   const wait = lastCallAt + MIN_INTERVAL_MS - Date.now();
   if (wait > 0) await new Promise(r => setTimeout(r, wait));
   lastCallAt = Date.now();
 }
 
-export async function oddsPapiGet(apiKey, path, params) {
+export async function oddsPapiGet(apiKey, path, params, attempt = 0) {
   await throttle();
   const url = new URL(BASE + path);
   url.searchParams.set('apiKey', apiKey);
   Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   const res = await fetch(url);
   const json = await res.json().catch(() => null);
+  if (res.status === 429 && attempt < 4) {
+    const retryMs = Number(json?.error?.retryMs) || 1000;
+    await new Promise(r => setTimeout(r, retryMs + 250)); // lidt margin oveni serverens eget tal
+    return oddsPapiGet(apiKey, path, params, attempt + 1);
+  }
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json).slice(0, 300)}`);
   return json;
 }
