@@ -26,13 +26,28 @@
     --amber:#F3A93B; --amber-soft:#C98B2E;
     --won:#2FA56C; --lost:#DD5147; --yellow:#E8B73A; --red:#DD5147;
     --shadow:0 18px 40px -18px rgba(0,0,0,.55);
+    /* Safe-area — samme kilde overalt, så notch/Dynamic Island (iPhone) og almindelige
+       telefoner (Android, ældre iPhones uden notch) begge håndteres korrekt: env() giver 0
+       på enheder uden safe-area, så intet af det her tilføjer overflødig luft der, hvor der
+       ikke er en notch/home-indicator at gå uden om. */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --header-height: 56px; /* headerens indhold uden safe-area — til reference/afstandsberegning */
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
-  body{background:var(--board);color:var(--paper);font-family:'Inter',system-ui,sans-serif;line-height:1.5;min-height:100vh;padding-bottom:86px}
+  /* body er "app-shell'en": fylder hele den dynamiske viewport-højde (100dvh reagerer korrekt på
+     Safaris skrumpende adresselinje, i modsætning til 100vh), og bund-polstringen rummer BÅDE
+     bund-navigationens egen højde OG dens safe-area, så indhold aldrig gemmer sig bagved den —
+     uanset om telefonen har en home-indicator (der gør navigationen lidt højere) eller ej. */
+  body{background:var(--board);color:var(--paper);font-family:'Inter',system-ui,sans-serif;line-height:1.5;min-height:100dvh;padding-bottom:calc(86px + var(--safe-bottom))}
   .wrap{max-width:720px;margin:0 auto;padding:0 16px}
 
-  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:calc(4px + env(safe-area-inset-top,0)) 0 14px;position:sticky;top:env(safe-area-inset-top,0);z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
+  /* Headeren er "sticky", så den SELV skal kende safe-area — både i sin egen polstring (så
+     indholdet ikke starter for langt oppe første gang) og i sit klæbepunkt ("top", så den ikke
+     klæber fast midt inde under statusbaren, når man scroller). Baggrunden må gerne fortsætte
+     helt op under statusbaren (ingen safe-area på selve baggrunden) — kun INDHOLDET flyttes ned. */
+  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:calc(4px + var(--safe-top)) 0 14px;position:sticky;top:var(--safe-top);z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
   .board .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .brand{display:flex;align-items:center;gap:9px;min-width:0}
   .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
@@ -208,7 +223,7 @@
   .admin-note{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
 
   #loginScreen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
-    padding:calc(24px + env(safe-area-inset-top,0)) 24px calc(24px + env(safe-area-inset-bottom,0));
+    padding:calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
     background:radial-gradient(120% 90% at 50% 0%, rgba(243,169,59,.12), transparent 55%), var(--board)}
   #loginScreen .box{width:100%;max-width:360px}
   #loginScreen .badge{width:92px;height:92px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle at 32% 26%, #FFEBB0, #F3A93B 45%, #A9701D 100%);
@@ -223,7 +238,10 @@
   .who-pill{cursor:pointer}
   .who-pill:active{opacity:.8}
 
-  nav{position:fixed;bottom:0;left:0;right:0;z-index:10;background:rgba(16,38,33,.94);backdrop-filter:blur(10px);border-top:1px solid var(--board-line);display:flex;padding:8px 4px calc(8px + env(safe-area-inset-bottom,0))}
+  /* max(), ikke +: på telefoner UDEN home-indicator (Android, ældre iPhone) er safe-bottom 0,
+     så vi falder tilbage til en almindelig 12px bund-luft i stedet for at lægge 0 oveni 8px og
+     ende for tæt på kanten. På telefoner MED home-indicator vinder safe-bottom (typisk ~34px). */
+  nav{position:fixed;bottom:0;left:0;right:0;z-index:10;background:rgba(16,38,33,.94);backdrop-filter:blur(10px);border-top:1px solid var(--board-line);display:flex;padding:8px 4px max(12px, var(--safe-bottom))}
   nav button{flex:1;background:none;border:none;color:rgba(235,238,234,.5);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:color .15s}
   nav button .ic{font-size:17px;line-height:1}
   nav button.active{color:var(--amber)}
