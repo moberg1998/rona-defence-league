@@ -79,10 +79,11 @@ service cloud.firestore {
       }
 
       // Push-notifikations-tokens: hvert medlem må kun skrive/slette sit EGET token.
-      // Ingen klienter kan læse token-listen — kun scheduler-robotten (Firebase Admin SDK,
-      // som ikke er underlagt disse regler) læser dem for at sende beskeder.
+      // Læsning er begrænset til egne tokens (uid skal matche), så klienten kan rydde op i
+      // sine egne gamle/duplikerede tokens (fx efter en service worker-opdatering) — ingen kan
+      // liste andres. Scheduler-robotten (Firebase Admin SDK) er uden om disse regler.
       match /pushTokens/{token} {
-        allow read: if false;
+        allow read: if isMember() && resource.data.uid == request.auth.uid;
         allow write: if isMember() && request.resource.data.uid == request.auth.uid;
         allow delete: if isMember();
       }

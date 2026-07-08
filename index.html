@@ -2030,6 +2030,16 @@ function notifBody(){
   return `${pushCard}<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">Disse sendes automatisk som push-notifikationer på tidspunktet nedenfor til dem, der mangler noget. Her vises hvem der lige nu ville få besked:</p></div>${notifInner()}</section>`;
 }
 let myPushToken=null;
+// Rydder alle ANDRE tokens op, der hører til denne konto (fx et gammelt token fra før en
+// service worker-opdatering udstedte et nyt) — ellers får enheden beskeder to gange, én pr. token.
+async function pruneOtherPushTokens(currentToken){
+  try{
+    const snap=await pushTokensCol.where('uid','==',auth.currentUser.uid).get();
+    const stale=snap.docs.filter(d=>d.id!==currentToken);
+    if(!stale.length)return;
+    const batch=db.batch(); stale.forEach(d=>batch.delete(d.ref)); await batch.commit();
+  }catch(e){ console.error('Kunne ikke rydde gamle push-tokens:', e); }
+}
 async function enablePush(){
   if(!messagingSupported){ toast('Din browser/telefon understøtter desværre ikke web-push.'); return; }
   try{
@@ -2040,6 +2050,7 @@ async function enablePush(){
     if(!token){ toast('Kunne ikke oprette en notifikations-nøgle — prøv igen.'); return; }
     myPushToken=token;
     await pushTokensCol.doc(token).set({token, player:S.user, uid:auth.currentUser.uid, updatedAt:Date.now()});
+    await pruneOtherPushTokens(token);
     toast('🔔 Notifikationer er aktiveret på denne enhed.');
     moreView='notif'; renderMore();
   }catch(e){ console.error(e); toast('Kunne ikke aktivere notifikationer: '+e.message); }
@@ -2054,7 +2065,7 @@ async function refreshPushTokenIfGranted(){
   try{
     const reg=await navigator.serviceWorker.ready;
     const token=await messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
-    if(token){ myPushToken=token; await pushTokensCol.doc(token).set({token, player:S.user, uid:auth.currentUser.uid, updatedAt:Date.now()}, {merge:true}); }
+    if(token){ myPushToken=token; await pushTokensCol.doc(token).set({token, player:S.user, uid:auth.currentUser.uid, updatedAt:Date.now()}, {merge:true}); await pruneOtherPushTokens(token); }
   }catch(e){ console.error(e); }
 }
 if(messaging) messaging.onMessage(payload=>{
