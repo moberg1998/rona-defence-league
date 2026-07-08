@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Rona Defence League</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0C1B18">
@@ -32,7 +32,7 @@
   body{background:var(--board);color:var(--paper);font-family:'Inter',system-ui,sans-serif;line-height:1.5;min-height:100vh;padding-bottom:86px}
   .wrap{max-width:720px;margin:0 auto;padding:0 16px}
 
-  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:14px 0;position:sticky;top:0;z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
+  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:calc(14px + env(safe-area-inset-top,0)) 0 14px;position:sticky;top:0;z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
   .board .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .brand{display:flex;align-items:center;gap:9px;min-width:0}
   .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
@@ -207,7 +207,8 @@
   .hint{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(235,238,234,.4);text-align:center;margin-top:20px;line-height:1.7}
   .admin-note{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
 
-  #loginScreen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;
+  #loginScreen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+    padding:calc(24px + env(safe-area-inset-top,0)) 24px calc(24px + env(safe-area-inset-bottom,0));
     background:radial-gradient(120% 90% at 50% 0%, rgba(243,169,59,.12), transparent 55%), var(--board)}
   #loginScreen .box{width:100%;max-width:360px}
   #loginScreen .badge{width:92px;height:92px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle at 32% 26%, #FFEBB0, #F3A93B 45%, #A9701D 100%);
