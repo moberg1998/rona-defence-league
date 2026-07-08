@@ -34,7 +34,12 @@ export async function fetchTennis(apiKey, cacheRef) {
   const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
   const lastDay = DateTime.now().setZone(TZ).plus({ days: FETCH_DAYS - 1 }).toFormat('yyyy-MM-dd');
 
-  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId, from: today, to: lastDay, hasOdds: true });
+  // OBS: IKKE hasOdds:true her — det filtrerer på SERVER-siden til kampe, der allerede har
+  // odds live, hvilket typisk først sker 1-2 dage før kampstart. Det gjorde reelt hele "hent
+  // langt frem"-idéen virkningsløs: kampe 9 dage ude findes, men har endnu ingen odds, så de blev
+  // usynlige for os. Nu hentes ALLE planlagte kampe; odds fyldes ind for op til MAX_ODDS_LOOKUPS
+  // af dem (resten vises uden, samme fallback som alle andre sportsgrene).
+  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId, from: today, to: lastDay });
   let fixtures = asList(fixturesJson).filter(fx => isWeekendSlot(fx.startTime || fx.date));
   console.log(`Tennis: ${fixtures.length} kamp(e) fundet (lør. 12-søn., ${today} → ${lastDay}), før turneringsfilter.`);
   if (!fixtures.length) return [];

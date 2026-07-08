@@ -25,7 +25,10 @@ export async function fetchCS2(apiKey, cacheRef) {
   const today = DateTime.now().setZone(TZ).toFormat('yyyy-MM-dd');
   const lastDay = DateTime.now().setZone(TZ).plus({ days: FETCH_DAYS - 1 }).toFormat('yyyy-MM-dd');
 
-  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: lastDay, hasOdds: true });
+  // OBS: IKKE hasOdds:true her — se tennis.mjs. Det filtrerer server-side til kampe med odds
+  // LIVE ALLEREDE, hvilket typisk først sker 1-2 dage før kampstart, og gjorde "hent langt frem"
+  // virkningsløs for weekend-kampe. Nu hentes alle planlagte kampe; odds fyldes ind hvor muligt.
+  const fixturesJson = await oddsPapiGet(apiKey, '/v4/fixtures', { sportId: CS2_SPORT_ID, from: today, to: lastDay });
   let fixtures = asList(fixturesJson).filter(fx => isWeekendSlot(fx.startTime || fx.date));
   console.log(`CS2: ${fixtures.length} kamp(e) fundet (lør. 12-søn., ${today} → ${lastDay}), før turneringsfilter.`);
   if (!fixtures.length) return [];
