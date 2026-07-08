@@ -1639,13 +1639,49 @@ async function claimDailyGift(){
 }
 function showGiftOverlay(item,onKeep){
   let ov=document.getElementById('giftOverlay'); if(ov)ov.remove();
+  const SZ=180;
   ov=document.createElement('div'); ov.id='giftOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:28px;text-align:center';
-  ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎁 Dagens gave</div>
-    <div style="width:120px;height:120px;border-radius:20px;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px;box-shadow:0 0 40px rgba(243,169,59,.25)">${item.icon}</div>
-    <div style="font-family:'Oswald';font-size:22px;font-weight:600;color:#EBEEEA">${item.name}</div>
-    <button class="btn btn-dark" style="margin-top:6px" id="giftKeepBtn">Sejt!</button>`;
+  ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎟️ Skrab dagens gave</div>
+    <div style="position:relative;width:${SZ}px;height:${SZ}px;border-radius:20px;overflow:hidden;box-shadow:0 0 40px rgba(243,169,59,.25)">
+      <div style="position:absolute;inset:0;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px">${item.icon}</div>
+      <canvas id="scratchCanvas" width="${SZ}" height="${SZ}" style="position:absolute;inset:0;touch-action:none;cursor:pointer"></canvas>
+    </div>
+    <div id="giftNameReveal" style="font-family:'Oswald';font-size:22px;font-weight:600;color:#EBEEEA;min-height:30px"></div>
+    <div id="scratchHint" style="font-size:12px;color:#9fb0aa">Skrab feltet med fingeren for at afsløre 👆</div>
+    <button class="btn btn-dark" style="margin-top:6px;display:none" id="giftKeepBtn">Sejt!</button>
+    <span id="scratchSkip" style="font-size:11px;color:#9fb0aa;text-decoration:underline;cursor:pointer;margin-top:-8px">spring skrabningen over</span>`;
   document.body.appendChild(ov);
+
+  const canvas=document.getElementById('scratchCanvas'), ctx=canvas.getContext('2d');
+  ctx.fillStyle='#B9C0BB'; ctx.fillRect(0,0,SZ,SZ);
+  ctx.fillStyle='rgba(12,27,24,.35)';
+  for(let y=0;y<SZ;y+=14) ctx.fillRect(0,y,SZ,7);
+  ctx.fillStyle='#0C1B18'; ctx.textAlign='center'; ctx.font='700 13px Oswald, sans-serif';
+  ctx.fillText('SKRAB HER', SZ/2, SZ/2+6); ctx.font='26px sans-serif'; ctx.fillText('🎟️', SZ/2, SZ/2-24);
+
+  let scratching=false, revealed=false;
+  function reveal(){
+    if(revealed)return; revealed=true;
+    canvas.remove();
+    document.getElementById('giftNameReveal').textContent=item.name;
+    document.getElementById('scratchHint').style.display='none';
+    document.getElementById('scratchSkip').style.display='none';
+    document.getElementById('giftKeepBtn').style.display='inline-block';
+  }
+  function scratchAt(x,y){ ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill(); }
+  function posFromEvent(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*(SZ/r.width), y:(e.clientY-r.top)*(SZ/r.height)}; }
+  function checkProgress(){
+    if(revealed)return;
+    const data=ctx.getImageData(0,0,SZ,SZ).data; let clear=0,sampled=0;
+    for(let i=3;i<data.length;i+=4*8){ sampled++; if(data[i]<10)clear++; }
+    if(clear/sampled>0.5) reveal();
+  }
+  canvas.addEventListener('pointerdown', e=>{ scratching=true; canvas.setPointerCapture(e.pointerId); const p=posFromEvent(e); scratchAt(p.x,p.y); checkProgress(); });
+  canvas.addEventListener('pointermove', e=>{ if(!scratching)return; const p=posFromEvent(e); scratchAt(p.x,p.y); checkProgress(); });
+  canvas.addEventListener('pointerup', ()=>{ scratching=false; });
+  canvas.addEventListener('pointercancel', ()=>{ scratching=false; });
+  document.getElementById('scratchSkip').onclick=reveal;
   document.getElementById('giftKeepBtn').onclick=()=>{ ov.remove(); onKeep(); };
 }
 function collectiblesBody(){
