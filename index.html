@@ -1154,8 +1154,17 @@ async function settleRound(){
   subs.forEach(n=>{const od=parseFloat(document.getElementById('od_'+n).value); if(od>1)r.picks[n].odds=od;
     const cl=parseFloat(document.getElementById('cl_'+n).value); r.picks[n].closing=cl>1?cl:null;});
   r.status='settled';
+  const mk=r.date.slice(0,7); const wasClosed=!!(S.payments[mk]||{}).closed;
   const notes=autoCloseDue();   // luk månederne der er færdige (auto)
-  const monthNote=notes.length?notes[notes.length-1]:null;
+  let monthNote=notes.length?notes[notes.length-1]:null;
+  // Rundens egen måned var allerede lukket, FØR den her runde blev afgjort — det sker, hvis admin
+  // har tilføjet en ekstra runde (fx en bonusrunde) i en måned, der allerede havde nået sine 2
+  // planlagte runder. Genberegn KUN den måneds taber-bøde ud fra alle runder nu — resten af
+  // historikken (andre lukkede måneder, betalingsstatus dér) røres ikke.
+  if(wasClosed){
+    const res=recomputeMonthFines(mk);
+    if(res) monthNote=res.losers?('Ekstra runde — ny taber-fordeling for måneden: '+res.losers):'Ekstra runde — ingen taber-bøde for måneden nu (frikendt/uafgjort).';
+  }
   await saveRound(r); await saveState(); await ensureOpenRound(); renderAll(); showRevealOverlay(r, monthNote);
 }
 function confettiBurst(parent){
