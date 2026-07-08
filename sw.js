@@ -18,7 +18,7 @@ if (messaging) {
   });
 }
 
-const CACHE_NAME = 'rdl-shell-v2';
+const CACHE_NAME = 'rdl-shell-v3';
 const SHELL_FILES = [
   './',
   './index.html',
