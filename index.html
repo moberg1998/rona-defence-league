@@ -324,14 +324,14 @@ const WHEEL=[["varcheck",20],["tyveri",20],["skjold",20],["boost",12],["sabotage
 const COLLECTIBLE_START='2026-08-01';
 const COLLECTIBLE_ITEMS=[
   {id:'flaeskesvaer', name:'Pose flæskesvær', icon:'🥓'},
-  {id:'sambuca', name:'Sambuca', icon:'🥃'},
+  {id:'sambuca', name:'Sambuca', icon:'🍸'},
   {id:'durum', name:'Durum/sandwich', icon:'🌯'},
   {id:'chips', name:'Pose chips', icon:'🥔'},
   {id:'fadoel', name:'Fadøl', icon:'🍺'},
   {id:'skrabelod', name:'Skrabelod', icon:'🎫'},
   {id:'gulerod', name:'Gulerod', icon:'🥕'},
 ];
-const COLLECTIBLE_TARGET=10;
+const COLLECTIBLE_TARGET=15;
 function collectiblesStarted(){ return new Date().toISOString().slice(0,10) >= COLLECTIBLE_START; }
 
 const MARKETS={
@@ -1651,13 +1651,16 @@ function showGiftOverlay(item,onKeep){
 function collectiblesBody(){
   const started=collectiblesStarted(); const claimed=hasClaimedToday(); const mine=myCollectible();
   const grid=COLLECTIBLE_ITEMS.map(it=>{ const n=mine.counts[it.id]||0; const discovered=n>0; const done=n>=COLLECTIBLE_TARGET;
-    const icon=discovered?it.icon:'❓'; const name=discovered?it.name:'???';
+    // Tre trin: 0 = "?" (helt ukendt) · 1-14 = silhuet af genstanden (set, men ikke fuldendt) · 15+ = fuld afsløring.
+    const icon=!discovered?'❓':it.icon;
+    const iconStyle=discovered&&!done?'font-size:32px;filter:brightness(0);opacity:.38':'font-size:32px';
+    const name=done?it.name:'???';
     const countTxt=!discovered?('0 / '+COLLECTIBLE_TARGET):done?('✓ Fuldendt · '+n+' stk.'):(n+' / '+COLLECTIBLE_TARGET);
-    return `<div class="pwr-card" style="text-align:center${done?';border-color:var(--won)':''}"><div style="font-size:32px">${icon}</div><div class="pwr-h" style="justify-content:center">${name}</div><div class="pwr-d">${countTxt}</div></div>`;
+    return `<div class="pwr-card" style="text-align:center${done?';border-color:var(--won)':''}"><div style="${iconStyle}">${icon}</div><div class="pwr-h" style="justify-content:center">${name}</div><div class="pwr-d">${countTxt}</div></div>`;
   }).join('');
   const done=COLLECTIBLE_ITEMS.filter(it=>(mine.counts[it.id]||0)>=COLLECTIBLE_TARGET).length;
   const others=`<div class="paper">${PLAYERS.map(n=>{const c=S.collectibles.players[n]||{counts:{}};const d=COLLECTIBLE_ITEMS.filter(it=>(c.counts[it.id]||0)>=COLLECTIBLE_TARGET).length;return `<div class="sub-row"><div><div class="nm">${nameOf(n)}${n===S.user?' (dig)':''}</div><div class="desc">${d} af ${COLLECTIBLE_ITEMS.length} fuldendt</div></div><span class="badge b-odds">${d}/${COLLECTIBLE_ITEMS.length}</span></div>`;}).join('')}</div>`;
-  return `<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">Ren pynt og sjov — samlerobjekter påvirker aldrig point, power-ups eller auktionen. Åbn én tilfældig gave om dagen, og saml ${COLLECTIBLE_TARGET} af hver slags til en fuldendt samling. Du ved ikke, hvad en genstand er, før du har fået den første — den vises som ❓, indtil da.</p></div>
+  return `<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">Ren pynt og sjov — samlerobjekter påvirker aldrig point, power-ups eller auktionen. Åbn én tilfældig gave, når du logger ind, og saml ${COLLECTIBLE_TARGET} af hver slags til en fuldendt samling. Ukendte genstande vises som ❓ — få den første, og du ser en silhuet; nå ${COLLECTIBLE_TARGET} stk., og den afsløres helt.</p></div>
     ${started?`<div class="paper pad" style="margin-bottom:14px;text-align:center">
       <button class="btn ${claimed?'btn-ghost':'btn-dark'}" style="width:100%" ${claimed?'disabled':''} onclick="claimDailyGift()">${claimed?'🎁 Dagens gave er åbnet — kom tilbage i morgen':'🎁 Åbn dagens gave'}</button>
     </div>`:`<div class="paper pad" style="margin-bottom:14px"><div class="empty" style="padding:6px 0"><div class="big">Starter snart</div>Samlerobjekter starter lørdag d. 1. august 2026 — kom tilbage da for at åbne din første gave!</div></div>`}
