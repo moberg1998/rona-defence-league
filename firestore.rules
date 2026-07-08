@@ -52,6 +52,10 @@ service cloud.firestore {
         allow read: if isMember();
         allow write: if isAdminUser();
       }
+      match /state/collectibles {
+        allow read: if isMember();
+        allow write: if isMember();   // hver spiller åbner selv sin daglige gave
+      }
       // Kø til planlæggeren (GitHub Actions): admin kan bede om en manuel besked;
       // robotten (Admin SDK, uden om disse regler) læser og rydder den igen.
       match /state/notifTracker {

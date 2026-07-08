@@ -316,6 +316,17 @@ const POWER_ORDER=["boost","sabotage","tyveri","skjold","varcheck","frikendelse"
 const EXP_PER_SPIN=50;
 const WHEEL=[["varcheck",20],["tyveri",20],["skjold",20],["boost",12],["sabotage",12],["joker",8],["frikendelse",8]];
 
+// Samlerobjekter — ren pynt/sjov, påvirker aldrig point, power-ups eller auktionen.
+// Én tilfældig genstand pr. dag pr. spiller; COLLECTIBLE_TARGET af samme slags = "fuldendt".
+const COLLECTIBLE_ITEMS=[
+  {id:'albani', name:'Albani', icon:'🍺'},
+  {id:'flaeskesvaer', name:'Pose flæskesvær', icon:'🥓'},
+  {id:'gammeldansk', name:'Gammel Dansk', icon:'🥃'},
+  {id:'poelsevogn', name:'Pølsevogns-hotdog', icon:'🌭'},
+  {id:'ostepops', name:'Ostepops', icon:'🧀'},
+];
+const COLLECTIBLE_TARGET=3;
+
 const MARKETS={
   Fodbold:["1X2 (Moneyline)","Dobbeltchance","Over/Under","Begge hold scorer","Asian handicap","Europæisk handicap"],
   Håndbold:["1X2 (Moneyline)","Handicap","Over/Under"],
@@ -355,7 +366,7 @@ const CLUB=db.collection('clubs').doc('rona');
 const stateDoc=name=>CLUB.collection('state').doc(name);
 const metaRef=stateDoc('meta'), discRef=stateDoc('disc'), powerRef=stateDoc('power'),
   auctionRef=stateDoc('auction'), paymentsRef=stateDoc('payments'), finesRef=stateDoc('fines'), archiveRef=stateDoc('archive'),
-  fixturesLiveRef=stateDoc('fixturesLive');
+  fixturesLiveRef=stateDoc('fixturesLive'), collectiblesRef=stateDoc('collectibles');
 const roundsCol=CLUB.collection('rounds');
 const invitesCol=CLUB.collection('invites');
 const pushTokensCol=CLUB.collection('pushTokens');
@@ -381,7 +392,8 @@ function freshState(){
     nicks:{},                  // realName -> kaldenavn
     power:{ arsenal:Object.fromEntries(DEFAULT_PLAYERS.map(n=>[n,[]])), spun:Object.fromEntries(DEFAULT_PLAYERS.map(n=>[n,0])), log:[] },
     archive:[],
-    auction:{ items:[], sales:[], open:false, season:null, budgets:{}, running:false, order:[], idx:0, high:0, highBy:null, endsAt:0, sold:[], done:false }
+    auction:{ items:[], sales:[], open:false, season:null, budgets:{}, running:false, order:[], idx:0, high:0, highBy:null, endsAt:0, sold:[], done:false },
+    collectibles:{ players:Object.fromEntries(DEFAULT_PLAYERS.map(n=>[n,{counts:{},lastClaimed:null}])), log:[] }
   };
 }
 function metaOf(fs){ return {players:fs.players, inactivePlayers:fs.inactivePlayers, season:fs.season, monthlyFee:fs.monthlyFee, balanceAdj:fs.balanceAdj, nicks:fs.nicks}; }
@@ -390,9 +402,9 @@ function stopSync(){ unsubList.forEach(u=>u()); unsubList=[]; }
 function startSync(){
   S=freshState(); S.user=MY_NAME; S.fixturesLive={football:[]};
   const fs=freshState();
-  const defaults={meta:metaOf(fs), disc:fs.disc, power:fs.power, auction:fs.auction, payments:fs.payments, fines:{list:fs.fines}, archive:{list:fs.archive}};
+  const defaults={meta:metaOf(fs), disc:fs.disc, power:fs.power, auction:fs.auction, payments:fs.payments, fines:{list:fs.fines}, archive:{list:fs.archive}, collectibles:fs.collectibles};
   return new Promise(resolve=>{
-    const pending=new Set(['meta','disc','power','auction','payments','fines','archive','rounds']);
+    const pending=new Set(['meta','disc','power','auction','payments','fines','archive','rounds','collectibles']);
     function partReady(k){ pending.delete(k); if(pending.size===0)resolve(); }
     function docSync(ref,key,apply){
       unsubList.push(ref.onSnapshot(async snap=>{
@@ -408,6 +420,7 @@ function startSync(){
     docSync(paymentsRef,'payments', d=>{ S.payments=d||{}; });
     docSync(finesRef,'fines', d=>{ S.fines=(d&&d.list)||[]; S.fines.forEach(f=>{ if(!f.dueMonth) f.dueMonth=upcomingPayMonth(); }); });
     docSync(archiveRef,'archive', d=>{ S.archive=(d&&d.list)||[]; });
+    docSync(collectiblesRef,'collectibles', d=>{ S.collectibles=d; S.collectibles.players=S.collectibles.players||{}; PLAYERS.forEach(n=>{ if(!S.collectibles.players[n])S.collectibles.players[n]={counts:{},lastClaimed:null}; }); });
     // Skrivebeskyttet cache af kommende kampe/odds — hentet af scheduler-robotten. Ikke en del af
     // "pending"-sættet: appen skal ikke vente på den, og findes den ikke endnu, er der bare ingen live-kampe.
     unsubList.push(fixturesLiveRef.onSnapshot(snap=>{
@@ -428,6 +441,7 @@ async function saveState(){
       metaRef.set({players:S.players, inactivePlayers:S.inactivePlayers||[], season:S.season, monthlyFee:S.monthlyFee, balanceAdj:S.balanceAdj, nicks:S.nicks}),
       discRef.set(S.disc), powerRef.set(S.power), auctionRef.set(S.auction),
       paymentsRef.set(S.payments), finesRef.set({list:S.fines}), archiveRef.set({list:S.archive}),
+      collectiblesRef.set(S.collectibles),
     ]);
   }catch(e){ console.error(e); }
 }
@@ -1311,6 +1325,7 @@ function renderMore(){
       <div class="menu-item" onclick="openMore('password')"><span class="t">Skift adgangskode</span><span class="a">›</span></div>
       ${isAdmin()?`<div class="menu-item" onclick="openMore('admin')"><span class="t">⚙️ Adminpanel</span><span class="a">›</span></div>`:''}
       <div class="menu-item" onclick="openMore('power')"><span class="t">⚡ Power League</span><span class="a">›</span></div>
+      <div class="menu-item" onclick="openMore('collect')"><span class="t">🎁 Samlerobjekter${hasClaimedToday()?'':' <span style="color:var(--won);font-size:11px">ny gave!</span>'}</span><span class="a">›</span></div>
       <div class="menu-item" onclick="openMore('disc')"><span class="t">Disciplin & kort</span><span class="a">›</span></div>
       <div class="menu-item" onclick="openMore('season')"><span class="t">Sæson & awards</span><span class="a">›</span></div>
       ${S.archive.length?`<div class="menu-item" onclick="openMore('archive')"><span class="t">📚 Tidligere sæsoner <span style="color:var(--ink-soft);font-size:11px">(${S.archive.length})</span></span><span class="a">›</span></div>`:''}
@@ -1328,6 +1343,7 @@ function renderMore(){
   else if(moreView==='nick'){ el.innerHTML=moreBack('Mit kaldenavn')+nickBody(); const i=document.getElementById('nickInp'); if(i){i.value=S.nicks[S.user]||'';i.focus();} }
   else if(moreView==='password'){ el.innerHTML=moreBack('Skift adgangskode')+passwordBody(); }
   else if(moreView==='power'){ el.innerHTML=moreBack('Power League')+powerBody(); }
+  else if(moreView==='collect'){ el.innerHTML=moreBack('Samlerobjekter')+collectiblesBody(); }
   else if(moreView==='rules'){ el.innerHTML=moreBack('Regler')+rulesBody(); }
 }
 function adminBody(){
@@ -1601,6 +1617,43 @@ function powerBody(){
     <div class="paper">${POWER_ORDER.map(t=>{const P=POWERS[t];return `<div class="sub-row" style="align-items:flex-start"><div style="display:flex;gap:10px"><span style="font-size:20px;line-height:1.2">${P.icon}</span><div><div class="nm">${P.name}</div><div class="desc" style="margin-top:2px">${P.desc}</div></div></div></div>`;}).join('')}</div>
     <p style="font-size:11px;color:var(--ink-soft);margin-top:8px">Power-ups vindes på den enarmede tyveknægt, når du optjener EXP og spins. De flytter kun stillingen — aldrig statistikken.</p>
     </section>`;
+}
+function myCollectible(){ S.collectibles.players[S.user]||={counts:{},lastClaimed:null}; return S.collectibles.players[S.user]; }
+function hasClaimedToday(){ return myCollectible().lastClaimed===new Date().toISOString().slice(0,10); }
+async function claimDailyGift(){
+  if(hasClaimedToday())return;
+  const item=COLLECTIBLE_ITEMS[Math.floor(Math.random()*COLLECTIBLE_ITEMS.length)];
+  showGiftOverlay(item, async ()=>{
+    const me=myCollectible(); me.counts[item.id]=(me.counts[item.id]||0)+1; me.lastClaimed=new Date().toISOString().slice(0,10);
+    S.collectibles.log.push({ts:Date.now(),player:S.user,item:item.id});
+    await saveState(); moreView='collect'; renderMore();
+  });
+}
+function showGiftOverlay(item,onKeep){
+  let ov=document.getElementById('giftOverlay'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='giftOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:28px;text-align:center';
+  ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎁 Dagens gave</div>
+    <div style="width:120px;height:120px;border-radius:20px;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px;box-shadow:0 0 40px rgba(243,169,59,.25)">${item.icon}</div>
+    <div style="font-family:'Oswald';font-size:22px;font-weight:600;color:#EBEEEA">${item.name}</div>
+    <button class="btn btn-dark" style="margin-top:6px" id="giftKeepBtn">Sejt!</button>`;
+  document.body.appendChild(ov);
+  document.getElementById('giftKeepBtn').onclick=()=>{ ov.remove(); onKeep(); };
+}
+function collectiblesBody(){
+  const claimed=hasClaimedToday(); const mine=myCollectible();
+  const grid=COLLECTIBLE_ITEMS.map(it=>{ const n=mine.counts[it.id]||0; const done=n>=COLLECTIBLE_TARGET;
+    return `<div class="pwr-card" style="text-align:center${done?';border-color:var(--won)':''}"><div style="font-size:32px">${it.icon}</div><div class="pwr-h" style="justify-content:center">${it.name}</div><div class="pwr-d">${done?'✓ Fuldendt':n+' / '+COLLECTIBLE_TARGET}</div></div>`;
+  }).join('');
+  const done=COLLECTIBLE_ITEMS.filter(it=>(mine.counts[it.id]||0)>=COLLECTIBLE_TARGET).length;
+  const others=`<div class="paper">${PLAYERS.map(n=>{const c=S.collectibles.players[n]||{counts:{}};const d=COLLECTIBLE_ITEMS.filter(it=>(c.counts[it.id]||0)>=COLLECTIBLE_TARGET).length;return `<div class="sub-row"><div><div class="nm">${nameOf(n)}${n===S.user?' (dig)':''}</div><div class="desc">${d} af ${COLLECTIBLE_ITEMS.length} fuldendt</div></div><span class="badge b-odds">${d}/${COLLECTIBLE_ITEMS.length}</span></div>`;}).join('')}</div>`;
+  return `<div class="paper pad" style="margin-bottom:14px"><p style="font-size:13px;color:var(--ink-soft)">Ren pynt og sjov — samlerobjekter påvirker aldrig point, power-ups eller auktionen. Åbn én tilfældig gave om dagen, og saml ${COLLECTIBLE_TARGET} af hver slags til en fuldendt samling.</p></div>
+    <div class="paper pad" style="margin-bottom:14px;text-align:center">
+      <button class="btn ${claimed?'btn-ghost':'btn-dark'}" style="width:100%" ${claimed?'disabled':''} onclick="claimDailyGift()">${claimed?'🎁 Dagens gave er åbnet — kom tilbage i morgen':'🎁 Åbn dagens gave'}</button>
+    </div>
+    <div class="eyebrow">Din samling · ${done}/${COLLECTIBLE_ITEMS.length} fuldendt</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px">${grid}</div>
+    <div class="eyebrow">Alles fremskridt</div>${others}`;
 }
 function moreBack(t){return `<section><div class="eyebrow"><span onclick="openMore('menu')" style="cursor:pointer">‹ ${t}</span></div>`;}
 function openMore(v){moreView=v;renderMore();window.scrollTo(0,0);}
