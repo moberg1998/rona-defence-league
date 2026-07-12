@@ -47,12 +47,12 @@
      indholdet ikke starter for langt oppe første gang) og i sit klæbepunkt ("top", så den ikke
      klæber fast midt inde under statusbaren, når man scroller). Baggrunden må gerne fortsætte
      helt op under statusbaren (ingen safe-area på selve baggrunden) — kun INDHOLDET flyttes ned. */
-  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:calc(4px + var(--safe-top)) 0 14px;position:sticky;top:var(--safe-top);z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
+  .board{background:radial-gradient(120% 140% at 100% 0%, rgba(243,169,59,.10), transparent 55%),var(--board-2);border-bottom:1px solid var(--board-line);padding:var(--safe-top) 0 8px;position:sticky;top:var(--safe-top);z-index:5;box-shadow:0 8px 24px -16px rgba(0,0,0,.8)}
   .board .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .brand{display:flex;align-items:center;gap:9px;min-width:0}
   .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
   .brand h1{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:clamp(16px,4.4vw,24px);line-height:1.04}
-  .who-pill{flex-shrink:0;display:flex;align-items:center;gap:7px;background:rgba(235,238,234,.07);border:1px solid var(--board-line);border-radius:30px;padding:5px 10px 5px 12px;cursor:pointer}
+  .who-pill{flex-shrink:0;display:flex;align-items:center;gap:7px;background:rgba(235,238,234,.07);border:1px solid var(--board-line);border-radius:30px;padding:4px 10px 4px 12px;cursor:pointer}
   .who-pill .nm{font-family:'Oswald',sans-serif;font-weight:500;font-size:15px;color:var(--paper)}
   .who-pill .adm{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.1em;background:var(--amber);color:var(--board);padding:1px 5px;border-radius:4px;font-weight:700}
   .who-pill select{position:absolute;opacity:0;width:1px;height:1px}
