@@ -806,7 +806,7 @@ function nextScheduled(refISO,inclusive){
 function satWhich(iso){ const d=new Date(iso+"T00:00:00Z"),y=d.getUTCFullYear(),m=d.getUTCMonth();
   if(iso===nthSat(y,m,1))return "1. lørdag"; if(iso===nthSat(y,m,3))return "3. lørdag"; return ""; }
 function deadlineText(iso){ const w=satWhich(iso); const[Y,M,D]=iso.split('-'); return `${w?w+' · ':''}lør ${+D}/${+M} kl. 10`; }
-function seasonStartDate(){ const today=new Date().toISOString().slice(0,10); const y=+today.slice(0,4); const sep=nthSat(y,8,1); return today<=sep?sep:nthSat(y+1,8,1); }   // udgangspunkt: 1. lørdag i september
+function seasonStartDate(){ const today=new Date().toISOString().slice(0,10); const y=+today.slice(0,4); const aug=nthSat(y,7,1); return today<=aug?aug:nthSat(y+1,7,1); }   // udgangspunkt: 1. lørdag i august
 async function ensureOpenRound(){
   if(S.season&&S.season.ended)return false;   // afsluttet sæson åbner ikke nye runder
   if(openRound())return false;
@@ -1010,7 +1010,7 @@ function renderRound(){
       const winners=lastRoundWinner();
       body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben</div>
         <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${winners.length?'Sidste rundes vinder: <b>'+winners.map(nameOf).join(' & ')+'</b> — spørg om jokerben skal bruges denne runde.':'Ingen afgjort runde endnu at udpege en vinder fra.'} Bliver I enige om et spil, tilføjer du det her — det tæller kun med på selve kuponen, aldrig i de personlige point.</p>
-        ${jokerFormOpen?jokerFormHTML():`<button class="btn btn-ghost-d" onclick="toggleJokerForm()">Tilføj jokerben</button>`}</div>`;
+        ${jokerFormOpen?jokerFormHTML():`<button class="btn btn-ghost" onclick="toggleJokerForm()">Tilføj jokerben</button>`}</div>`;
     }
   }
   // admin controls
@@ -1036,7 +1036,7 @@ function jokerFormHTML(){
     <div class="field"><label class="fld">Beskriv kampen/spillet</label><input type="text" id="jkDesc" placeholder="fx FCK - Brøndby, hjemmesejr"></div>
     <div class="field"><label class="fld">Sportsgren</label><select id="jkSport">${SPORTS_LIST.map(s=>`<option>${s}</option>`).join('')}<option>Andet</option></select></div>
     <div class="field"><label class="fld">Odds</label><input type="number" inputmode="decimal" step="0.01" min="1.01" id="jkOdds" placeholder="fx 1.85"></div>
-    <div class="btn-row"><button class="btn btn-dark" id="jkSubmit" disabled>Tilføj jokerben</button><button class="btn btn-ghost-d" onclick="toggleJokerForm()">Fortryd</button></div></div>`;
+    <div class="btn-row"><button class="btn btn-dark" id="jkSubmit" disabled>Tilføj jokerben</button><button class="btn btn-ghost" onclick="toggleJokerForm()">Fortryd</button></div></div>`;
 }
 function wireJokerForm(){
   const d=document.getElementById('jkDesc'), o=document.getElementById('jkOdds'), b=document.getElementById('jkSubmit');
@@ -1474,8 +1474,8 @@ function adminBody(){
       ${openMonths.length?openMonths.map(k=>{const[y,m]=k.split('-');const mls=monthLosers(settledRounds().filter(x=>x.date.slice(0,7)===k));const t=mls.map(x=>nameOf(x.name)+' (+'+x.penalty+' kr)').join(', ');return `<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">${MONTHS_DA[+m-1]} ${y}</div><div class="desc">${t?'taber: '+t:'ingen taber endnu'}</div></div><button class="chk" onclick="closeMonth('${k}')">Luk</button></div>`;}).join(''):'<p style="font-size:13px;color:var(--ink-soft)">Ingen åbne måneder at lukke.</p>'}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note" style="color:var(--lost)">Sæson</div>
       ${S.season&&S.season.ended
-        ? `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} er afsluttet og gemt under »Tidligere sæsoner«. Start en ny, når I er klar — som udgangspunkt 1. lørdag i september, men I kan gå i gang før.</p><button class="btn btn-dark" onclick="startNewSeason(false)">🏁 Start ny sæson (1. lørdag i september)</button><button class="btn btn-ghost-d" style="margin-top:8px" onclick="startNewSeason(true)">Start tidligere — næste planlagte lørdag</button>`
-        : `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} · ${settledRounds().length} runder afgjort. Lukning fryser alt og kårer vindere — sæsonen bliver stående, til du selv starter en ny.</p><button class="btn btn-red" onclick="closeSeason()">Luk sæson & kår vindere</button>${!settledRounds().length?`<button class="btn btn-ghost-d" style="margin-top:8px" onclick="resetToFreshSeasonStart()">🔄 Nulstil til frisk sæsonstart</button>`:''}`}</div>
+        ? `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} er afsluttet og gemt under »Tidligere sæsoner«. Start en ny, når I er klar — som udgangspunkt 1. lørdag i august, men I kan gå i gang før.</p><button class="btn btn-dark" onclick="startNewSeason(false)">🏁 Start ny sæson (1. lørdag i august)</button><button class="btn btn-ghost" style="margin-top:8px" onclick="startNewSeason(true)">Start tidligere — næste planlagte lørdag</button>`
+        : `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} · ${settledRounds().length} runder afgjort. Lukning fryser alt og kårer vindere — sæsonen bliver stående, til du selv starter en ny.</p><button class="btn btn-red" onclick="closeSeason()">Luk sæson & kår vindere</button>${!settledRounds().length?`<button class="btn btn-dark" style="margin-top:8px;width:100%" onclick="resetToFreshSeasonStart()">🔄 Nulstil til frisk sæsonstart</button>`:''}`}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">💰 Balance & månedstakst</div>
       <div class="field" style="margin-top:8px"><label class="fld">Månedstakst pr. mand (kr)</label><input type="number" inputmode="decimal" step="5" id="feeInp" value="${fee()}"></div>
       <p style="font-size:11px;color:var(--ink-soft);margin:-6px 0 12px">Ændringen gælder fremadrettet og for det, der stadig mangler at blive betalt.</p>
@@ -1486,7 +1486,7 @@ function adminBody(){
       <div class="field" style="margin-top:12px"><label class="fld">Ret balancen til (kr) — hvis den ikke passer helt</label><input type="number" inputmode="decimal" step="1" id="balTarget" placeholder="${Math.round(poolTotal())}"></div>
       <p style="font-size:11px;color:var(--ink-soft);margin:-6px 0 0">Skriv den rigtige balance, så gemmes forskellen som en manuel justering.</p></div>
       <button class="btn btn-dark" style="margin-top:12px" onclick="saveAdminEconomy()">Gem takst & balance</button>
-      ${(S.balanceAdj||0)!==0?`<button class="btn btn-ghost-d" style="margin-top:8px" onclick="resetBalanceAdj()">Nulstil justering</button>`:''}</div>
+      ${(S.balanceAdj||0)!==0?`<button class="btn btn-ghost" style="margin-top:8px" onclick="resetBalanceAdj()">Nulstil justering</button>`:''}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">✏️ Rediger runder & kuponer</div>
       <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 10px">Ret en tastefejl i en kupon, et resultat, odds, indsats — eller sæt den faktiske udbetaling (fx ved odds-boost).</p>
       ${S.rounds.length?S.rounds.slice().reverse().map(x=>`<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">Runde ${roundNo(x)} · ${fmtDate(x.date)}</div><div class="desc">${x.status==='settled'?(couponOdds(x)?couponOdds(x).toFixed(2)+' i samlet odds · net '+(couponNet(x)>=0?'+':'')+couponNet(x).toFixed(0)+' kr':'ingen ben'):x.status==='open'?'åben':'låst'}</div></div><button class="chk" onclick="adminEditRound('${x.id}')">Rediger</button></div>`).join(''):'<p style="font-size:13px;color:var(--ink-soft)">Ingen runder endnu.</p>'}</div>
@@ -1885,7 +1885,7 @@ function seasonBody(){
   let body=`<div class="paper pad" style="margin-bottom:14px"><div style="font-family:'Oswald';font-weight:600;font-size:18px">${S.season.name}${ended?' <span style="color:var(--amber-soft);font-size:12px">· AFSLUTTET</span>':''}</div>
     <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--ink-soft);margin-top:3px">Startet ${fmtDate(S.season.started)} · ${settledRounds().length} runder afgjort</div>
     ${ended
-      ? `<p style="font-size:13px;color:var(--ink-soft);margin:10px 0">Sæsonen er frosset med alle stats og awards herunder. Den ligger også gemt under »Tidligere sæsoner«. Når I er klar, starter du en ny — udgangspunktet er 1. lørdag i september, men I kan gå i gang før.</p>${isAdmin()?`<button class="btn btn-dark" onclick="startNewSeason(false)">🏁 Start ny sæson (1. lørdag i september)</button><button class="btn btn-ghost-d" style="margin-top:8px" onclick="startNewSeason(true)">Start tidligere — næste planlagte lørdag</button>`:'<div class="status-line" style="padding:6px 0 0">Kun admin kan starte en ny sæson.</div>'}`
+      ? `<p style="font-size:13px;color:var(--ink-soft);margin:10px 0">Sæsonen er frosset med alle stats og awards herunder. Den ligger også gemt under »Tidligere sæsoner«. Når I er klar, starter du en ny — udgangspunktet er 1. lørdag i august, men I kan gå i gang før.</p>${isAdmin()?`<button class="btn btn-dark" onclick="startNewSeason(false)">🏁 Start ny sæson (1. lørdag i august)</button><button class="btn btn-ghost" style="margin-top:8px" onclick="startNewSeason(true)">Start tidligere — næste planlagte lørdag</button>`:'<div class="status-line" style="padding:6px 0 0">Kun admin kan starte en ny sæson.</div>'}`
       : (isAdmin()?`<div class="btn-row" style="margin-top:12px"><button class="btn btn-red" onclick="closeSeason()">Luk sæson & kår vindere</button></div>`:'<div class="status-line" style="padding:10px 0 0">Kun admin kan lukke sæsonen.</div>')}</div>`;
   body+=`<div class="eyebrow">${ended?'Slutstilling → awards':'Stillingen lige nu → awards'}</div>`;
   body+= awards.length? awards.map(a=>`<details class="award-d"><summary><span class="ic">${a.icon}</span><div style="flex:1"><div class="t">${a.t}</div><div class="w">${a.w}</div></div><span class="chev">›</span></summary><div class="award-info">${a.info||''}</div></details>`).join('')
@@ -1975,7 +1975,7 @@ function editRoundBody(){
         <button style="flex:1" data-h="loss" class="${jp.hit===false?'active':''}" onclick="edSetHit('${JOKER_KEY}','loss')">Tabt</button>
         <button style="flex:1" data-h="void" class="${jp.hit==='void'?'active':''}" onclick="edSetHit('${JOKER_KEY}','void')">Void</button>
         <button style="flex:1" data-h="none" class="${jp.hit===null||jp.hit===undefined?'active':''}" onclick="edSetHit('${JOKER_KEY}','none')">—</button></div></div>
-      <button class="btn btn-ghost-d" style="margin-top:8px" onclick="removeJokerLeg()">Fjern jokerben</button></div>` : '';
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="removeJokerLeg()">Fjern jokerben</button></div>` : '';
   const settled=r.status==='settled';
   return `<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Runde ${roundNo(r)} · ${fmtDate(r.date)}</div>
       <p style="font-size:12px;color:var(--ink-soft);margin-top:6px">Ret hvad der er forkert og gem. Statistik og stilling regnes om automatisk. Bøder, der allerede er lagt, fjernes under »Bøder & gebyrer«.</p></div>
@@ -2055,7 +2055,7 @@ async function startNewSeason(early){
   if(!isAdmin())return;
   const today=new Date().toISOString().slice(0,10);
   const firstDate = early ? (nextScheduled(today,true)||today) : seasonStartDate();
-  confirmModal((early?"Start en ny sæson nu? Første runde lægger sig på næste planlagte lørdag ("+fmtDate(firstDate)+").":"Start en ny sæson? Første runde åbner 1. lørdag i september ("+fmtDate(firstDate)+").")+" Den nuværende sæson er allerede gemt under »Tidligere sæsoner«. Runder, point, penge og power-ups nulstilles.", async ()=>{
+  confirmModal((early?"Start en ny sæson nu? Første runde lægger sig på næste planlagte lørdag ("+fmtDate(firstDate)+").":"Start en ny sæson? Første runde åbner 1. lørdag i august ("+fmtDate(firstDate)+").")+" Den nuværende sæson er allerede gemt under »Tidligere sæsoner«. Runder, point, penge og power-ups nulstilles.", async ()=>{
     const num=S.archive.length+1;
     S.rounds=[]; S.payments={}; S.fines=[]; S.disc={players:Object.fromEntries(PLAYERS.map(n=>[n,{yellow:false,streak:0,reds:0}])),log:[]};
     S.power={arsenal:Object.fromEntries(PLAYERS.map(n=>[n,[]])), spun:Object.fromEntries(PLAYERS.map(n=>[n,0])), log:[]};
@@ -2064,14 +2064,14 @@ async function startNewSeason(early){
     const nr={id:firstDate,date:firstDate,status:'open',picks:{},absent:[]}; S.rounds.push(nr);
     await clearRoundsCollection(); await saveRound(nr); await saveState(); renderAll(); go('home');
     toast("🏁 "+S.season.name+" er i gang — første runde åbner "+fmtDate(firstDate)+".");
-  }, early?"Start nu":"Start til september");
+  }, early?"Start nu":"Start til august");
 }
 // Til brug FØR sæsonen reelt er i gang (ingen rigtige kampe/point at miste endnu) — modsat
 // startNewSeason() beholder den sæsonnavn/startdato og arkiverer intet, for der er ikke noget
 // rigtigt at gemme. Bruges til at rydde test-/prøverunder op, lige før den egentlige sæsonstart.
 async function resetToFreshSeasonStart(){
   if(!isAdmin())return;
-  const firstDate=nextScheduled(new Date().toISOString().slice(0,10),true)||seasonStartDate();
+  const firstDate=seasonStartDate();
   confirmModal(`Nulstil til frisk sæsonstart? Runder, bøder, betalinger, disciplin og power-ups ryddes — sæsonnavnet »${S.season.name}« beholdes (intet arkiveres, da der ikke er nogen rigtig historik endnu). Første runde lægger sig på ${fmtDate(firstDate)}.`, async ()=>{
     S.rounds=[]; S.payments={}; S.fines=[];
     S.disc={players:Object.fromEntries(PLAYERS.map(n=>[n,{yellow:false,streak:0,reds:0}])),log:[]};
@@ -2275,7 +2275,7 @@ function rulesBody(){
     <div class="rule"><h3><span class="n">06</span>Gult & rødt kort</h3><p>Glemmer du at sende spil eller betale: 1. gang gult, 2. gang rødt + 25 kr. Et gult forsvinder efter 3 rene forpligtelser. Kort handler om forglemmelser, ikke om at være dårligst — så du kan i samme måned både få et kort og være månedens taber. Begge bøder ryger i kassen.</p></div>
     <div class="rule"><h3><span class="n">07</span>Afbud & void</h3><p>Melder du afbud, springes du over uden kort første gang. Men afbud i to runder i træk giver et gult kort — præcis som at glemme en kupon eller en betaling (og rødt kort + 25 kr, hvis du allerede har gult). Bliver en kamp aflyst (void), fjernes benet helt fra alle tal.</p></div>
     <div class="rule"><h3><span class="n">08</span>Power League</h3><p>Du optjener EXP ved at spille — og ekstra når du rammer — og spinner den enarmede tyveknægt for power-ups. De påvirker <b>kun månedens stilling</b>, altså hvem der ender sidst og betaler taber-bøden den måned. De rører <b>aldrig sæsontabellen eller statistikken</b>. En sabotage eller et tyveri kan sende en i bund for måneden — men tyveri virker kun, hvis offeret rent faktisk fik point (ellers er det spildt).</p></div>
-    <div class="rule"><h3><span class="n">09</span>Sæson</h3><p>Udgangspunktet er, at sæsonen starter på <b>1. lørdag i september</b> og kører frem til sommeren med runder hver 1. og 3. lørdag. Men I bestemmer selv: admin kan vælge at gå i gang tidligere, og så lægger første runde sig på den næste planlagte lørdag. Til sidst lukker admin sæsonen, årets priser kåres, festkasserne bruges på årsauktionen, og sæsonen bliver stående, til admin starter en ny.</p></div></section>`;
+    <div class="rule"><h3><span class="n">09</span>Sæson</h3><p>Udgangspunktet er, at sæsonen starter på <b>1. lørdag i august</b> og kører frem til sommeren med runder hver 1. og 3. lørdag. Men I bestemmer selv: admin kan vælge at gå i gang tidligere, og så lægger første runde sig på den næste planlagte lørdag. Til sidst lukker admin sæsonen, årets priser kåres, festkasserne bruges på årsauktionen, og sæsonen bliver stående, til admin starter en ny.</p></div></section>`;
 }
 
 /* =================== IN-APP DIALOGS =================== */
