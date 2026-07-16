@@ -321,17 +321,30 @@
 
 <script>
 /* =================== CONFIG =================== */
-const DEFAULT_PLAYERS=["Joachim","Oliver","Getter","Moberg"];
+const DEFAULT_PLAYERS=["Joachim","Getter","Moberg"];
 let PLAYERS=[...DEFAULT_PLAYERS];
+// Jokerben: sidste rundes vinder kan (efter aftale med de andre) tilføje et ekstra, fælles ben på
+// kuponen. Det gemmes i r.picks under denne nøgle — IKKE i PLAYERS — så det tæller med i kuponens
+// økonomi (couponNet/couponOdds/slipHTML m.fl. via legNames()), men ALDRIG i de personlige point
+// (roundRaw/monthPoints/leaguePoints looper kun rå PLAYERS, aldrig legNames()).
+const JOKER_KEY='__joker__';
+function legNames(r){ return r.picks[JOKER_KEY] ? PLAYERS.concat([JOKER_KEY]) : PLAYERS; }
+function lastRoundWinner(){
+  const rs=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+  const last=rs[rs.length-1]; if(!last)return [];
+  const rp=roundRaw(last); const max=Math.max(...PLAYERS.map(n=>rp[n]));
+  if(max<=0)return [];
+  return PLAYERS.filter(n=>rp[n]===max);
+}
 const MONTHLY_FEE=100;
-const STAKE_DEFAULT=100;   // flatbetting: 100 kr pr. kupon som udgangspunkt (kan ændres ved aftale)
+const STAKE_DEFAULT=125;   // flatbetting: 125 kr pr. kupon som udgangspunkt (kan ændres ved aftale)
 const PAY_TO="Magnus";           // betalinger overføres til admin på MobilePay (ingen box-gebyr)
 const PAY_MOBILEPAY="42174259";
 const ADMIN="Moberg";
 const MONTHS_DA=["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
 const POWERS={
-  boost:{name:"Boost",icon:"⬆️",desc:"+2 til din egen stilling",need:"self"},
-  sabotage:{name:"Sabotage",icon:"💥",desc:"−2 til en valgt modstander",need:"opp"},
+  boost:{name:"Boost",icon:"⬆️",desc:"+1 til din egen stilling",need:"self"},
+  sabotage:{name:"Sabotage",icon:"💥",desc:"−1 til en valgt modstander",need:"opp"},
   tyveri:{name:"Tyveri",icon:"🥷",desc:"Flyt 1 point fra en modstander til dig — virker kun hvis modstanderen rent faktisk fik point den måned. Får de 0, er det too bad og tyveriet spildes",need:"opp"},
   skjold:{name:"Skjold",icon:"🛡️",desc:"Blokerer ét angreb mod dig",need:"self"},
   varcheck:{name:"VAR-check",icon:"📺",desc:"Fjern ét gult kort (dig selv eller en medspiller)",need:"any",now:true},
@@ -557,6 +570,13 @@ function anchorCount(name){
     if(others.length && others.every(x=>r.picks[x].hit)) c++; }
   return c;
 }
+function lastPlaceCount(name){
+  let c=0;
+  for(const r of settledRounds()){ const p=r.picks[name]; if(!isCounting(p))continue;
+    const subs=PLAYERS.filter(x=>isCounting(r.picks[x])); if(subs.length<2)continue;
+    if(roundRaw(r)[name]===0) c++; }
+  return c;
+}
 function carryCount(name){
   let c=0;
   for(const r of settledRounds()){ const subs=PLAYERS.filter(x=>isCounting(r.picks[x]));
@@ -577,8 +597,8 @@ function monthAdj(monthKey, rawPts){
     const shield={}; PLAYERS.forEach(n=>shield[n]=0);
     (r.powers||[]).forEach(p=>{ if(p.type==='skjold')shield[p.by]=(shield[p.by]||0)+1; });
     (r.powers||[]).forEach(p=>{
-      if(p.type==='boost') adj[p.by]+=2;
-      else if(p.type==='sabotage'){ if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null)adj[p.target]-=2; }
+      if(p.type==='boost') adj[p.by]+=1;
+      else if(p.type==='sabotage'){ if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null)adj[p.target]-=1; }
       else if(p.type==='tyveri'){ if(!(rawPts&&rawPts[p.target]>0))return;   // offeret har 0 point — intet at stjæle, too bad
         if(shield[p.target]>0)shield[p.target]--; else if(adj[p.target]!=null){adj[p.target]-=1;adj[p.by]+=1;} }
     });
@@ -690,12 +710,12 @@ function formGuide(name, n){
 function couponNet(r){
   if(!r.stake)return 0;
   if(r.payoutOverride!=null) return r.payoutOverride - r.stake;   // admin har sat faktisk udbetaling (fx odds-boost)
-  const legs=PLAYERS.filter(n=>isCounting(r.picks[n])); if(!legs.length)return 0;
+  const legs=legNames(r).filter(n=>isCounting(r.picks[n])); if(!legs.length)return 0;
   const won=legs.every(n=>r.picks[n].hit);
   let ret=0; if(won){let comb=1;legs.forEach(n=>comb*=r.picks[n].odds);ret=r.stake*comb;}
   return ret-r.stake;
 }
-function couponOdds(r){ const legs=PLAYERS.filter(n=>isCounting(r.picks[n])); let c=1; legs.forEach(n=>c*=r.picks[n].odds); return legs.length?c:0; }
+function couponOdds(r){ const legs=legNames(r).filter(n=>isCounting(r.picks[n])); let c=1; legs.forEach(n=>c*=r.picks[n].odds); return legs.length?c:0; }
 function finesTotal(){ return S.fines.reduce((a,f)=>a+f.amount,0); }
 function poolTotal(){
   const byMonth={}; settledRounds().forEach(r=>{(byMonth[r.date.slice(0,7)]||=[]).push(r);});
@@ -726,10 +746,21 @@ function computeAwards(){
   add(withPicks,n=>bigHits(n),"Giant Killer","🗡️",(v)=>`${v} ramt over 3,0`,"Flest ramte spil med odds 3,0 eller højere — kongen af de store overraskelser.",0);
   add(withPicks,n=>longestStreak(n),"Iron Man","🛡️",(v)=>`${v} i træk`,"Længste stime af rigtige spil i træk hen over sæsonen.",0);
   add(withPicks,n=>anchorCount(n),"The Anchor","⚓",(v)=>`dræbte ${v} kuponer`,"Dræbte flest kuponer — runder hvor man selv missede, mens ALLE andre ramte. Vandrepokal med skam — deles gerne.",0);
+  add(withPicks,n=>lastPlaceCount(n),"Tredjehjul","🥉",(v)=>`${v} gange sidst i runden`,"Flest gange endt sidst i en runde blandt de spillende — 3-mandsligaens hårdeste stempel.",0);
+  const avgWinOdds={}; withPicks.forEach(n=>{const ps=allPicksOf(n).filter(p=>p.hit); avgWinOdds[n]=ps.length?ps.reduce((a,p)=>a+p.odds,0)/ps.length:0;});
+  const stableIdiotPool=withPicks.filter(n=>avgWinOdds[n]>0);
+  if(stableIdiotPool.length) add(stableIdiotPool,n=>st[n].hitrate/avgWinOdds[n],"Den stabile idiot","🐌",(v,n)=>`${Math.round(st[n].hitrate*100)}% hitrate ved snitodds ${avgWinOdds[n].toFixed(2)}`,"Høj hitrate, men til meget lave odds — sikker som banken, spændende som en skattemappe.",0);
+  const avgOddsAll={}; withPicks.forEach(n=>{const ps=allPicksOf(n); avgOddsAll[n]=ps.length?ps.reduce((a,p)=>a+p.odds,0)/ps.length:0;});
+  add(withPicks,n=>avgOddsAll[n]*(1-st[n].hitrate),"Value Clown","🤡",(v,n)=>`snitodds ${avgOddsAll[n].toFixed(2)} · ${Math.round(st[n].hitrate*100)}% hitrate`,"Høje odds, lav hitrate — jagter guldet, rammer sjældent, men når det sker...",0);
+  const mr23Count={}; PLAYERS.forEach(n=>mr23Count[n]=0);
+  rs.forEach(r=>{ const subs=PLAYERS.filter(x=>isCounting(r.picks[x])); if(subs.length<3)return;
+    const misses=subs.filter(x=>!r.picks[x].hit);
+    if(misses.length===1) subs.filter(x=>r.picks[x].hit).forEach(x=>mr23Count[x]++); });
+  add(withPicks,n=>mr23Count[n],"Mr. 2/3","🤝",(v)=>`${v} gange`,"Flest gange ramt sit spil, mens præcis én anden ødelagde kuponen for holdet.",0);
   const clvPool=withPicks.filter(n=>st[n].clv!=null);
   if(clvPool.length) add(clvPool,n=>st[n].clv,"The Closer","📈",(v)=>`${v>=0?'+':''}${v.toFixed(1)}% CLV`,"Bedste CLV — fik i snit bedre odds end markedets slutodds. Det tal proffer stoler mest på.");
   let bestC=null,bestO=0,nearC=null,nearWho=null,worstC=null,worstO=Infinity;
-  rs.forEach(r=>{const subs=PLAYERS.filter(x=>isCounting(r.picks[x]));if(!subs.length)return;let comb=1;subs.forEach(x=>comb*=r.picks[x].odds);
+  rs.forEach(r=>{const subs=legNames(r).filter(x=>isCounting(r.picks[x]));if(!subs.length)return;let comb=1;subs.forEach(x=>comb*=r.picks[x].odds);
     const won=subs.every(x=>r.picks[x].hit);
     if(won&&comb>bestO){bestO=comb;bestC=r;}
     if(!won&&comb<worstO){worstO=comb;worstC=r;}
@@ -738,7 +769,7 @@ function computeAwards(){
   if(bestC) out.push({icon:"🏆",t:"Bedste kupon",w:`${fmtDate(bestC.date)} · samlet ${bestO.toFixed(2)}`,info:"Sæsonens flotteste hit: den vundne kupon med de højeste samlede odds."});
   if(nearC) out.push({icon:"😤",t:"Så tæt på",w:`${fmtDate(nearC.date)} · ${nameOf(nearWho)} missede den ene`,info:"Kuponen hvor kun én mand missede — så tæt på fuld plade."});
   if(worstC) out.push({icon:"🤡",t:"Årets ringeste kupon",w:`${fmtDate(worstC.date)} · kun ${worstO.toFixed(2)} i samlet odds`,info:"Den tabte kupon med de laveste samlede odds — så tæt på en sikker ting, og alligevel gik den ned."});
-  let dCur=0,dMax=0; rs.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id).forEach(r=>{const subs=PLAYERS.filter(x=>isCounting(r.picks[x]));if(!subs.length)return;if(subs.every(x=>r.picks[x].hit))dCur=0;else{dCur++;if(dCur>dMax)dMax=dCur;}});
+  let dCur=0,dMax=0; rs.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id).forEach(r=>{const subs=legNames(r).filter(x=>isCounting(r.picks[x]));if(!subs.length)return;if(subs.every(x=>r.picks[x].hit))dCur=0;else{dCur++;if(dCur>dMax)dMax=dCur;}});
   if(dMax>=2) out.push({icon:"🏜️",t:"Tørke-rekorden",w:`${dMax} kuponer i træk uden gevinst`,info:"Klubbens længste tørke — flest tabte kuponer i streg hen over sæsonen."});
   let specEdge=0.0001,specWho=null,specCat=null,specHr=0;
   withPicks.forEach(n=>{ const overall=st[n].hitrate;
@@ -756,7 +787,7 @@ function computeAwards(){
 /* =================== HELPERS =================== */
 function fmtDate(iso){const[y,m,d]=iso.split('-');return `${d}.${m}.${y}`;}
 function isAdmin(){return S.user===ADMIN;}
-function nameOf(n){ const nk=S.nicks&&S.nicks[n]; return nk?`${nk} (${n})`:n; }
+function nameOf(n){ if(n===JOKER_KEY)return '🃏 Jokerben'; const nk=S.nicks&&S.nicks[n]; return nk?`${nk} (${n})`:n; }
 function isActivePlayer(n){ return !(S.inactivePlayers||[]).includes(n); }
 function shortName(n){ return (S.nicks&&S.nicks[n])||n; }
 function openRound(){return S.rounds.find(r=>r.status!=='settled');}
@@ -786,7 +817,7 @@ async function ensureOpenRound(){
 }
 async function openNextRound(){ await ensureOpenRound(); renderAll(); go('round'); }
 function slipHTML(r){
-  const subs=PLAYERS.filter(n=>r.picks[n]);
+  const subs=legNames(r).filter(n=>r.picks[n]);
   const legs=subs.filter(n=>isCounting(r.picks[n]));
   const won=legs.length&&legs.every(n=>r.picks[n].hit);
   let comb=1; legs.forEach(n=>comb*=r.picks[n].odds);
@@ -799,7 +830,7 @@ function slipHTML(r){
 }
 // Tegner kuponen som et billede (canvas — ingen eksterne libs), til deling i fx Messenger.
 function couponCanvas(r){
-  const subs=PLAYERS.filter(n=>r.picks[n]);
+  const subs=legNames(r).filter(n=>r.picks[n]);
   const legs=subs.filter(n=>isCounting(r.picks[n]));
   const won=legs.length&&legs.every(n=>r.picks[n].hit);
   const net=couponNet(r);
@@ -967,6 +998,21 @@ function renderRound(){
       return `<div class="sub-row"><div><div class="nm">${nameOf(n)}${n===me?' (dig)':''}</div>${ab?'<div class="desc">Afbud / fravær</div>':p?`<div class="desc">${p.desc} · ${p.sport}</div>`:'<div class="desc">—</div>'}</div>
       <div style="display:flex;align-items:center;gap:8px">${ab?'<span class="badge b-wait" style="color:var(--amber-soft)">afbud</span>':p?`<span class="badge b-odds">${p.odds.toFixed(2)}</span>`:'<span class="badge b-wait">mangler</span>'}
       ${canToggle&&!p?`<button class="chk" style="padding:4px 10px" onclick="toggleAfbud('${n}')">${ab?'tilbage':'afbud'}</button>`:''}</div></div>`;}).join('')}</div>`;
+  // jokerben — kun admin, kun før runden er afgjort
+  if(isAdmin()&&r.status!=='settled'){
+    const jp=r.picks[JOKER_KEY];
+    if(jp){
+      body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben er sat</div>
+        <div style="font-family:'Oswald';font-weight:600;font-size:16px">${jp.desc} <span class="chip">${jp.sport}</span></div>
+        <div style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft);margin-top:4px">odds ${jp.odds.toFixed(2)}</div>
+        <p style="font-size:11px;color:var(--ink-soft);margin-top:8px">Ret eller fjern den under »Rediger runder & kuponer« i adminpanelet.</p></div>`;
+    } else {
+      const winners=lastRoundWinner();
+      body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben</div>
+        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${winners.length?'Sidste rundes vinder: <b>'+winners.map(nameOf).join(' & ')+'</b> — spørg om jokerben skal bruges denne runde.':'Ingen afgjort runde endnu at udpege en vinder fra.'} Bliver I enige om et spil, tilføjer du det her — det tæller kun med på selve kuponen, aldrig i de personlige point.</p>
+        ${jokerFormOpen?jokerFormHTML():`<button class="btn btn-ghost-d" onclick="toggleJokerForm()">Tilføj jokerben</button>`}</div>`;
+    }
+  }
   // admin controls
   if(isAdmin()){
     if(r.status==='open'){
@@ -981,6 +1027,35 @@ function renderRound(){
   }
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
+  if(isAdmin()&&r.status!=='settled'&&!r.picks[JOKER_KEY]&&jokerFormOpen)wireJokerForm();
+}
+let jokerFormOpen=false;
+function toggleJokerForm(){ jokerFormOpen=!jokerFormOpen; renderRound(); }
+function jokerFormHTML(){
+  return `<div style="margin-top:10px">
+    <div class="field"><label class="fld">Beskriv kampen/spillet</label><input type="text" id="jkDesc" placeholder="fx FCK - Brøndby, hjemmesejr"></div>
+    <div class="field"><label class="fld">Sportsgren</label><select id="jkSport">${SPORTS_LIST.map(s=>`<option>${s}</option>`).join('')}<option>Andet</option></select></div>
+    <div class="field"><label class="fld">Odds</label><input type="number" inputmode="decimal" step="0.01" min="1.01" id="jkOdds" placeholder="fx 1.85"></div>
+    <div class="btn-row"><button class="btn btn-dark" id="jkSubmit" disabled>Tilføj jokerben</button><button class="btn btn-ghost-d" onclick="toggleJokerForm()">Fortryd</button></div></div>`;
+}
+function wireJokerForm(){
+  const d=document.getElementById('jkDesc'), o=document.getElementById('jkOdds'), b=document.getElementById('jkSubmit');
+  if(!d||!o||!b)return;
+  const upd=()=>{ b.disabled=!(d.value.trim()&&parseFloat(o.value)>1); };
+  d.addEventListener('input',upd); o.addEventListener('input',upd);
+  b.addEventListener('click', submitJokerLeg);
+}
+async function submitJokerLeg(){
+  const r=openRound(); if(!r||r.status==='settled')return;
+  const desc=(document.getElementById('jkDesc').value||'').trim();
+  const sport=document.getElementById('jkSport').value;
+  const odds=parseFloat(document.getElementById('jkOdds').value);
+  if(!desc||!(odds>1))return;
+  r.picks[JOKER_KEY]={ sport, desc, odds, hit:null, closing:null };
+  jokerFormOpen=false;
+  await saveRoundMerge(r.id, {picks:{[JOKER_KEY]: r.picks[JOKER_KEY]}});
+  renderAll();
+  toast("🃏 Jokerben er tilføjet til kuponen!");
 }
 const LIVE_SPORT_LABELS={football:'Fodbold', handball:'Håndbold', basketball:'Basketball', hockey:'Ishockey', cs2:'Esport', tennis:'Tennis'};
 const LIVE_DEFAULT_MARKET={football:'1X2 (Moneyline)', handball:'1X2 (Moneyline)', basketball:'1X2 (Moneyline)', hockey:'1X2 (Moneyline)', cs2:'Kampvinder', tennis:'Kampvinder'};
@@ -1176,7 +1251,7 @@ async function lockRound(){
   if(warns.length) toast("⚠️ "+warns.join("\n"));
 }
 function renderSettle(r){
-  const subs=PLAYERS.filter(n=>r.picks[n]);
+  const subs=legNames(r).filter(n=>r.picks[n]);
   return `<div class="paper pad"><div class="admin-note">Admin · afgør runde ${roundNo(r)}</div>
     <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Ret odds, hvis du spillede til en anden odds end den indsendte (fx hos en anden bookmaker), og markér så hvert spil. <b>Void</b> = kampen blev aflyst eller udskudt; benet fjernes helt fra alle tal. Closing-odds er valgfri og bruges kun til CLV-statistik.</p>
     <div class="field"><label class="fld">Indsats på kuponen (kr) — flat ${STAKE_DEFAULT} kr som udgangspunkt, ret kun hvis andet er aftalt</label><input type="number" inputmode="decimal" step="1" id="stakeInp" placeholder="${STAKE_DEFAULT}" value="${r.stake??STAKE_DEFAULT}"></div>
@@ -1195,7 +1270,7 @@ function setHit(n,v){ const r=openRound(); r.picks[n].hit=v;
   ['w','l','v'].forEach(pre=>{const el=document.getElementById(pre+'_'+n);if(el)el.classList.remove('active');});
   const pre=v===true?'w':v===false?'l':'v'; const el=document.getElementById(pre+'_'+n); if(el)el.classList.add('active'); }
 async function settleRound(){
-  const r=openRound(); const subs=PLAYERS.filter(n=>r.picks[n]);
+  const r=openRound(); const subs=legNames(r).filter(n=>r.picks[n]);
   if(subs.some(n=>r.picks[n].hit===null||r.picks[n].hit===undefined)){ toast("Markér alle spil (vandt, tabt eller void) først."); return; }
   const stake=parseFloat(document.getElementById('stakeInp').value); r.stake=stake>0?stake:0;
   subs.forEach(n=>{const od=parseFloat(document.getElementById('od_'+n).value); if(od>1)r.picks[n].odds=od;
@@ -1221,7 +1296,7 @@ function confettiBurst(parent){
     parent.appendChild(c); setTimeout(()=>c.remove(), dur*1000+150); }
 }
 function showRevealOverlay(r, monthNote){
-  const subs=PLAYERS.filter(n=>r.picks[n]);
+  const subs=legNames(r).filter(n=>r.picks[n]);
   if(!subs.length){ if(monthNote)toast("🔔 "+monthNote); go('home'); return; }
   const legs=subs.filter(n=>isCounting(r.picks[n]));
   const won=legs.length&&legs.every(n=>r.picks[n].hit);
@@ -1400,7 +1475,7 @@ function adminBody(){
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note" style="color:var(--lost)">Sæson</div>
       ${S.season&&S.season.ended
         ? `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} er afsluttet og gemt under »Tidligere sæsoner«. Start en ny, når I er klar — som udgangspunkt 1. lørdag i september, men I kan gå i gang før.</p><button class="btn btn-dark" onclick="startNewSeason(false)">🏁 Start ny sæson (1. lørdag i september)</button><button class="btn btn-ghost-d" style="margin-top:8px" onclick="startNewSeason(true)">Start tidligere — næste planlagte lørdag</button>`
-        : `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} · ${settledRounds().length} runder afgjort. Lukning fryser alt og kårer vindere — sæsonen bliver stående, til du selv starter en ny.</p><button class="btn btn-red" onclick="closeSeason()">Luk sæson & kår vindere</button>`}</div>
+        : `<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${S.season.name} · ${settledRounds().length} runder afgjort. Lukning fryser alt og kårer vindere — sæsonen bliver stående, til du selv starter en ny.</p><button class="btn btn-red" onclick="closeSeason()">Luk sæson & kår vindere</button>${!settledRounds().length?`<button class="btn btn-ghost-d" style="margin-top:8px" onclick="resetToFreshSeasonStart()">🔄 Nulstil til frisk sæsonstart</button>`:''}`}</div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">💰 Balance & månedstakst</div>
       <div class="field" style="margin-top:8px"><label class="fld">Månedstakst pr. mand (kr)</label><input type="number" inputmode="decimal" step="5" id="feeInp" value="${fee()}"></div>
       <p style="font-size:11px;color:var(--ink-soft);margin:-6px 0 12px">Ændringen gælder fremadrettet og for det, der stadig mangler at blive betalt.</p>
@@ -1424,7 +1499,7 @@ function adminBody(){
       <div class="btn-row"><button class="btn btn-ghost" onclick="sendNotif('spil')">Manglende spil</button><button class="btn btn-ghost" onclick="sendNotif('betal')">Manglende betaling</button><button class="btn btn-ghost" onclick="sendNotif('lukket')">Kuponen lukket</button><button class="btn btn-ghost" onclick="sendNotif('maaned')">Månedsbesked</button></div></div>
     <div class="paper" style="margin-bottom:14px"><div class="menu-item" onclick="openMore('disc')"><span class="t">Disciplin & kort</span><span class="a">›</span></div></div>
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Medlemmer · ${PLAYERS.length}</div>
-      ${PLAYERS.map(n=>{const inactive=!isActivePlayer(n);return `<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">${nameOf(n)}${inactive?' <span style="color:var(--ink-soft);font-size:11px">(deaktiveret)</span>':''}</div></div>${n===ADMIN?'':`<button class="chk" style="${inactive?'':'color:var(--lost)'}" onclick="toggleMemberActive('${n}')">${inactive?'Aktivér':'Deaktivér'}</button>`}</div>`;}).join('')}
+      ${PLAYERS.map(n=>{const inactive=!isActivePlayer(n);return `<div class="sub-row" style="padding-left:0;padding-right:0"><div><div class="nm" style="font-size:15px">${nameOf(n)}${inactive?' <span style="color:var(--ink-soft);font-size:11px">(deaktiveret)</span>':''}</div></div>${n===ADMIN?'':`<div style="display:flex;gap:6px"><button class="chk" style="${inactive?'':'color:var(--lost)'}" onclick="toggleMemberActive('${n}')">${inactive?'Aktivér':'Deaktivér'}</button><button class="chk" style="color:var(--lost)" onclick="removePlayerPermanently('${n}')">Fjern permanent</button></div>`}</div>`;}).join('')}
       <p style="font-size:12px;color:var(--ink-soft);margin:8px 0 12px">Deaktivering spærrer login og stopper nye disciplin-kort for manglende spil/betaling — historik og point rører vi ikke.</p>
       <div class="field"><label class="fld">Tilføj nyt medlem</label><input type="text" id="newMemberName" maxlength="18" placeholder="Navn" style="margin-bottom:6px"><input type="email" id="newMemberEmail" placeholder="E-mail (til login)"></div>
       <p style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Buy-in sættes automatisk til det største samlede bidrag lige nu${buyinNow>0?' = <b>'+buyinNow+' kr</b>':''} (indskud + bøder, alt inkl.), så ingen køber sig billigt ind. Pointskalaen vokser selv med antallet. Ved 5+ spilles kuponen som system-tripler. Personen sætter selv sin adgangskode ved første login på »Opret adgangskode her« med den e-mail, du skriver her.</p>
@@ -1477,6 +1552,30 @@ async function toggleMemberActive(name){
     await saveState(); renderAll();
     toast((activeNow?nameOf(name)+" er deaktiveret.":nameOf(name)+" er aktiveret igen.")+(inviteFound?"":" (Ingen login-invitation fundet endnu — kun spil/betaling er slået fra.)"));
   }, activeNow?"Deaktivér":"Aktivér");
+}
+// Fjerner et medlem HELT — modsat toggleMemberActive() bevares ingen historik. Bruges kun når
+// nogen reelt forlader klubben (fx før en sæson reelt er startet) og skal væk, som om de aldrig
+// havde været med. Kan ikke fortrydes.
+async function removePlayerPermanently(name){
+  if(!isAdmin()||name===ADMIN)return;
+  confirmModal(`Fjern ${nameOf(name)} PERMANENT? Dette kan IKKE fortrydes — personen forsvinder helt fra klubben: point, bøder, kort, power-ups og spil i alle runder slettes, som om personen aldrig havde været med. Login spærres (invitationen slettes).`, async ()=>{
+    try{
+      const q=await invitesCol.where('name','==',name).limit(1).get();
+      if(!q.empty) await q.docs[0].ref.delete();
+    }catch(e){ console.error(e); toast("Kunne ikke slette login-invitationen — prøv igen."); return; }
+    PLAYERS=PLAYERS.filter(n=>n!==name); S.players=PLAYERS.slice();
+    S.inactivePlayers=(S.inactivePlayers||[]).filter(n=>n!==name);
+    delete S.disc.players[name];
+    delete S.power.arsenal[name]; delete S.power.spun[name];
+    if(S.collectibles&&S.collectibles.players) delete S.collectibles.players[name];
+    S.fines=S.fines.filter(f=>f.player!==name);
+    const touchedRounds=S.rounds.filter(r=>r.picks[name]||(r.absent||[]).includes(name));
+    touchedRounds.forEach(r=>{ delete r.picks[name]; if(r.absent)r.absent=r.absent.filter(x=>x!==name); });
+    try{ await Promise.all(touchedRounds.map(r=>saveRound(r))); await saveState(); }
+    catch(e){ console.error(e); toast("Kunne ikke gemme fjernelsen — prøv igen."); return; }
+    renderAll(); go('more');
+    toast(nameOf(name)+" er fjernet permanent fra klubben.");
+  }, "Fjern permanent");
 }
 function hasPower(name,type){ return (S.power.arsenal[name]||[]).includes(type); }
 function expFor(name){
@@ -1866,10 +1965,21 @@ function editRoundBody(){
         <button style="flex:1" data-h="void" class="${p.hit==='void'?'active':''}" onclick="edSetHit('${n}','void')">Void</button>
         <button style="flex:1" data-h="none" class="${p.hit===null||p.hit===undefined?'active':''}" onclick="edSetHit('${n}','none')">—</button></div></div></div>`;
   }).join('');
+  const jp=r.picks[JOKER_KEY];
+  const jokerCard = jp ? `<div class="paper pad" style="margin-bottom:10px"><div class="nm" style="font-size:15px;margin-bottom:8px">${nameOf(JOKER_KEY)}</div>
+      <div class="field"><label class="fld">Spil-tekst</label><input type="text" id="ed_desc_${JOKER_KEY}" value="${(jp.desc||'').replace(/"/g,'&quot;')}"></div>
+      <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label class="fld">Odds</label><input type="number" inputmode="decimal" step="0.01" id="ed_odds_${JOKER_KEY}" value="${jp.odds}"></div>
+      <div class="field" style="flex:1"><label class="fld">Closing (valgfri)</label><input type="number" inputmode="decimal" step="0.01" id="ed_cl_${JOKER_KEY}" value="${jp.closing??''}"></div></div>
+      <div class="field"><label class="fld">Resultat</label><div class="seg" id="ed_hit_${JOKER_KEY}" style="flex-wrap:nowrap">
+        <button style="flex:1" data-h="win" class="${jp.hit===true?'active':''}" onclick="edSetHit('${JOKER_KEY}','win')">Vandt</button>
+        <button style="flex:1" data-h="loss" class="${jp.hit===false?'active':''}" onclick="edSetHit('${JOKER_KEY}','loss')">Tabt</button>
+        <button style="flex:1" data-h="void" class="${jp.hit==='void'?'active':''}" onclick="edSetHit('${JOKER_KEY}','void')">Void</button>
+        <button style="flex:1" data-h="none" class="${jp.hit===null||jp.hit===undefined?'active':''}" onclick="edSetHit('${JOKER_KEY}','none')">—</button></div></div>
+      <button class="btn btn-ghost-d" style="margin-top:8px" onclick="removeJokerLeg()">Fjern jokerben</button></div>` : '';
   const settled=r.status==='settled';
   return `<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Runde ${roundNo(r)} · ${fmtDate(r.date)}</div>
       <p style="font-size:12px;color:var(--ink-soft);margin-top:6px">Ret hvad der er forkert og gem. Statistik og stilling regnes om automatisk. Bøder, der allerede er lagt, fjernes under »Bøder & gebyrer«.</p></div>
-    ${legs}
+    ${legs}${jokerCard}
     <div class="paper pad" style="margin-bottom:14px"><div class="admin-note">Kupon-økonomi</div>
       <div class="field" style="margin-top:8px"><label class="fld">Dato for runden (kan rykkes, fx for at starte sæsonen tidligere)</label><input type="date" id="ed_date" value="${r.date}"></div>
       <div class="field"><label class="fld">Indsats (kr)</label><input type="number" inputmode="decimal" step="1" id="ed_stake" value="${r.stake??STAKE_DEFAULT}"></div>
@@ -1881,9 +1991,11 @@ function editRoundBody(){
 function edSetHit(n,h){ const r=S.rounds.find(x=>x.id===editRoundId); if(!r||!r.picks[n])return;
   r.picks[n].hit = h==='win'?true:h==='loss'?false:h==='void'?'void':null;
   document.querySelectorAll('#ed_hit_'+n+' button').forEach(b=>b.classList.toggle('active',b.dataset.h===h)); }
+async function removeJokerLeg(){ if(!isAdmin())return; const r=S.rounds.find(x=>x.id===editRoundId); if(!r||!r.picks[JOKER_KEY])return;
+  delete r.picks[JOKER_KEY]; await saveRound(r); adminEditRound(r.id); toast("Jokerben fjernet."); }
 async function saveRoundEdits(){ if(!isAdmin())return; const r=S.rounds.find(x=>x.id===editRoundId); if(!r)return;
   const oldMonth=r.date.slice(0,7);
-  PLAYERS.forEach(n=>{ const p=r.picks[n]; if(!p)return;
+  legNames(r).forEach(n=>{ const p=r.picks[n]; if(!p)return;
     const d=document.getElementById('ed_desc_'+n); if(d)p.desc=d.value.trim();
     const o=document.getElementById('ed_odds_'+n); if(o&&parseFloat(o.value)>1)p.odds=parseFloat(o.value);
     const c=document.getElementById('ed_cl_'+n); if(c)p.closing=c.value.trim()?parseFloat(c.value):null;
@@ -1924,8 +2036,8 @@ async function closeSeason(){
   const payments=Object.fromEntries(PLAYERS.map(n=>[n,{paid:cc[n].paid, owed:cc[n].owed}]));
   const disc=Object.fromEntries(PLAYERS.map(n=>[n,{yellow:!!(S.disc.players[n]||{}).yellow, reds:(S.disc.players[n]||{}).reds||0}]));
   const roundsSnap=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{
-    const legs=PLAYERS.filter(n=>r.picks[n]).map(n=>({name:nameOf(n), desc:r.picks[n].desc, odds:r.picks[n].odds, hit:r.picks[n].hit, sport:r.picks[n].sport}));
-    const won=legs.length&&PLAYERS.filter(n=>isCounting(r.picks[n])).every(n=>r.picks[n].hit);
+    const legs=legNames(r).filter(n=>r.picks[n]).map(n=>({name:nameOf(n), desc:r.picks[n].desc, odds:r.picks[n].odds, hit:r.picks[n].hit, sport:r.picks[n].sport}));
+    const won=legs.length&&legNames(r).filter(n=>isCounting(r.picks[n])).every(n=>r.picks[n].hit);
     return {no:roundNo(r), date:r.date, result:legs.length?(won?'Vandt':'Tabt'):'—', stake:r.stake||0, odds:+couponOdds(r).toFixed(2), net:+couponNet(r).toFixed(0), legs};
   });
   const months=[...new Set(settledRounds().map(r=>r.date.slice(0,7)))];
@@ -1953,6 +2065,22 @@ async function startNewSeason(early){
     await clearRoundsCollection(); await saveRound(nr); await saveState(); renderAll(); go('home');
     toast("🏁 "+S.season.name+" er i gang — første runde åbner "+fmtDate(firstDate)+".");
   }, early?"Start nu":"Start til september");
+}
+// Til brug FØR sæsonen reelt er i gang (ingen rigtige kampe/point at miste endnu) — modsat
+// startNewSeason() beholder den sæsonnavn/startdato og arkiverer intet, for der er ikke noget
+// rigtigt at gemme. Bruges til at rydde test-/prøverunder op, lige før den egentlige sæsonstart.
+async function resetToFreshSeasonStart(){
+  if(!isAdmin())return;
+  const firstDate=nextScheduled(new Date().toISOString().slice(0,10),true)||seasonStartDate();
+  confirmModal(`Nulstil til frisk sæsonstart? Runder, bøder, betalinger, disciplin og power-ups ryddes — sæsonnavnet »${S.season.name}« beholdes (intet arkiveres, da der ikke er nogen rigtig historik endnu). Første runde lægger sig på ${fmtDate(firstDate)}.`, async ()=>{
+    S.rounds=[]; S.payments={}; S.fines=[];
+    S.disc={players:Object.fromEntries(PLAYERS.map(n=>[n,{yellow:false,streak:0,reds:0}])),log:[]};
+    S.power={arsenal:Object.fromEntries(PLAYERS.map(n=>[n,[]])), spun:Object.fromEntries(PLAYERS.map(n=>[n,0])), log:[]};
+    S.monthlyFee=150;
+    const nr={id:firstDate,date:firstDate,status:'open',picks:{},absent:[]}; S.rounds.push(nr);
+    await clearRoundsCollection(); await saveRound(nr); await saveState(); renderAll(); go('home');
+    toast("🔄 Nulstillet — "+S.season.name+" starter friskt "+fmtDate(firstDate)+" (indskud sat til 150 kr/md).");
+  }, "Nulstil");
 }
 function seasonHighlights(){
   const rs=settledRounds(); let big={odds:0}, won=0, lost=0, voids=0;
