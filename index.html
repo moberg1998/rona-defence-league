@@ -642,8 +642,9 @@ function monthLosers(rs){   // bruger den manipulerede stilling; bøden afgøres
   const {pts,elig,s}=monthPoints(rs);
   const played=PLAYERS.filter(n=>s[n].p>=1);
   const noShow=PLAYERS.filter(n=>s[n].p===0);
-  // Spillede nogen, men ikke alle? → de(n) der slet ikke spillede måneden er taber(e) (25 kr)
-  if(noShow.length && played.length) return noShow.map(n=>({name:n, penalty:25}));
+  // Spillede nogen, men ikke alle? → de(n) der slet ikke spillede måneden er ALTID dårligst,
+  // uanset hvordan de andre klarede sig — samme takst som en "sidst + minus TB"-taber (50 kr).
+  if(noShow.length && played.length) return noShow.map(n=>({name:n, penalty:50}));
   if(elig.length<2)return [];
   const worst=[...elig].sort((a,b)=> pts[a]-pts[b] || s[a].tb-s[b].tb || s[a].hr-s[b].hr || s[a].net-s[b].net)[0];
   const group=elig.filter(n=> pts[n]===pts[worst] && s[n].tb===s[worst].tb && s[n].hr===s[worst].hr && s[n].net===s[worst].net);
@@ -757,6 +758,7 @@ function computeAwards(){
     const misses=subs.filter(x=>!r.picks[x].hit);
     if(misses.length===1) subs.filter(x=>r.picks[x].hit).forEach(x=>mr23Count[x]++); });
   add(withPicks,n=>mr23Count[n],"Mr. 2/3","🤝",(v)=>`${v} gange`,"Flest gange ramt sit spil, mens præcis én anden ødelagde kuponen for holdet.",0);
+  if(rs.length) add(PLAYERS,n=>rs.filter(r=>!r.picks[n]).length,"Oliver","🚪",(v)=>`${v} runder helt udeblevet`,"Opkaldt til ære for ham der ikke gad mere — flest runder helt uden spil, hverken indsendt eller meldt afbud ændrer noget. Man var bare ikke der.",0);
   const clvPool=withPicks.filter(n=>st[n].clv!=null);
   if(clvPool.length) add(clvPool,n=>st[n].clv,"The Closer","📈",(v)=>`${v>=0?'+':''}${v.toFixed(1)}% CLV`,"Bedste CLV — fik i snit bedre odds end markedets slutodds. Det tal proffer stoler mest på.");
   let bestC=null,bestO=0,nearC=null,nearWho=null,worstC=null,worstO=Infinity;
