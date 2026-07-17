@@ -211,6 +211,8 @@
   @keyframes sparklePop{0%{opacity:1;transform:scale(0) translateY(0)}100%{opacity:0;transform:scale(1) translateY(-24px)}}
   @keyframes giftReveal{0%{opacity:0;transform:scale(.6) rotate(-8deg)}60%{opacity:1;transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
   @keyframes splashGlow{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+  @keyframes splashRing{0%{transform:scale(.3);opacity:.75}100%{transform:scale(3.2);opacity:0}}
+  @keyframes splashSubtitle{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
   @keyframes splashFadeOut{to{opacity:0;visibility:hidden}}
   @keyframes snowFall{to{transform:translateY(110vh) translateX(20px)}}
   #toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(16px);z-index:90;background:#0C1B18;color:#EBEEEA;border:1px solid var(--amber-soft);border-radius:12px;padding:13px 18px;max-width:88%;font-size:13px;line-height:1.5;box-shadow:0 8px 28px rgba(0,0,0,.45);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:pre-line;text-align:center}
@@ -1325,14 +1327,24 @@ function sparkleAt(parent, xPct, yPct){
 
 // Kort brand-splash ved rigtig login (ikke ved almindelige skærmskift) — logo-glød + klubnavn,
 // fader selv væk igen efter under et sekund. Kan ikke skippes-irriterende, fordi den er så kort.
+// Kort, men lidt mere teatralsk brand-splash ved rigtig login (ikke ved almindelige skærmskift):
+// glødende ring-puls om prikken, klubnavn der popper ind, og — hvis der er en aktiv sports-/
+// højtidstema — en undertitel der viser hvad appen fejrer lige nu. ~2,5 sek. i alt.
 function showLaunchSplash(){
   let ov=document.getElementById('launchSplash'); if(ov)ov.remove();
   ov=document.createElement('div'); ov.id='launchSplash';
-  ov.style.cssText='position:fixed;inset:0;background:var(--board);z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
-  ov.innerHTML=`<div style="width:16px;height:16px;border-radius:50%;background:var(--seasonal-accent,var(--amber));animation:splashGlow 1s ease-in-out infinite;box-shadow:0 0 34px 6px var(--seasonal-accent,rgba(243,169,59,.55))"></div>
-    <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:21px;color:#EBEEEA;opacity:0;animation:revPop .5s .15s forwards">Rona Defence League</div>`;
+  ov.style.cssText='position:fixed;inset:0;background:var(--board);z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;overflow:hidden';
+  const t=activeTheme();
+  const sub = t ? `${t.icon} ${t.label}` : 'Sæson 1';
+  ov.innerHTML=`<div style="position:relative;width:16px;height:16px;display:flex;align-items:center;justify-content:center">
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s ease-out infinite"></div>
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s .5s ease-out infinite"></div>
+      <div style="width:16px;height:16px;border-radius:50%;background:var(--seasonal-accent,var(--amber));animation:splashGlow 1.2s ease-in-out infinite;box-shadow:0 0 38px 8px var(--seasonal-accent,rgba(243,169,59,.55))"></div>
+    </div>
+    <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:22px;color:#EBEEEA;opacity:0;animation:revPop .55s .2s forwards;text-align:center">Rona Defence League</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--seasonal-accent,#C98B2E);opacity:0;animation:splashSubtitle .5s .85s forwards">${sub}</div>`;
   document.body.appendChild(ov);
-  setTimeout(()=>{ ov.style.transition='opacity .4s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),420); }, 750);
+  setTimeout(()=>{ ov.style.transition='opacity .5s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),520); }, 2050);
 }
 
 /* =================== SÆSON-/HØJTIDSTEMA =================== */
@@ -1348,10 +1360,36 @@ function seasonalTheme(){
   if(mm>=9&&mm<=11) return {key:'efteraar',label:'Efterår',icon:'🍂',accent:'#C98B2E',particles:null};
   return null;
 }
+// Store slutrunder/turneringer — samme idé som Googles "doodle til mærkedage", men for sport.
+// To slags: (a) FASTE datoer pr. år (VM/EM — uregelmæssig rytme, verificeret via websøgning
+// juli 2026) — skal opdateres manuelt, når næste udgave kendes; (b) TILBAGEVENDENDE mønstre
+// (samme tid hvert år — Grand Slams, PDC-VM, CL-finalen) angivet som MM-DD, ingen årstal
+// nødvendigt. Sportstemaer har forrang over det generelle sæsontema, når begge er aktive.
+const SPORTS_EVENTS_DATED=[
+  {key:'vm-fodbold-2026',label:'VM i fodbold',icon:'⚽',accent:'#2FA56C',start:'2026-06-11',end:'2026-07-19'},
+  {key:'haandbold-em-k-2026',label:'Håndbold-EM (kvinder)',icon:'🤾‍♀️',accent:'#DD5147',start:'2026-12-03',end:'2026-12-20'},
+  {key:'haandbold-vm-h-2027',label:'Håndbold-VM (herrer)',icon:'🤾',accent:'#4FC3F7',start:'2027-01-13',end:'2027-01-31'},
+];
+const SPORTS_EVENTS_RECURRING=[
+  {key:'darts-vm',label:'VM i darts',icon:'🎯',accent:'#F3A93B',fromMd:'12-10',toMd:'01-03'},
+  {key:'aus-open',label:'Australian Open',icon:'🎾',accent:'#4FC3F7',fromMd:'01-10',toMd:'02-02'},
+  {key:'cl-finale',label:'Champions League-finalen nærmer sig',icon:'🏆',accent:'#2FA56C',fromMd:'05-20',toMd:'05-31'},
+  {key:'french-open',label:'Roland-Garros',icon:'🎾',accent:'#DD5147',fromMd:'05-20',toMd:'06-08'},
+  {key:'wimbledon',label:'Wimbledon',icon:'🎾',accent:'#EBEEEA',fromMd:'06-25',toMd:'07-13'},
+  {key:'us-open-tennis',label:'US Open',icon:'🎾',accent:'#F3A93B',fromMd:'08-28',toMd:'09-14'},
+];
+function mdInRange(md,from,to){ return from<=to ? (md>=from&&md<=to) : (md>=from||md<=to); }
+function sportsEventTheme(){
+  const now=new Date(); const iso=now.toISOString().slice(0,10); const md=iso.slice(5,10);
+  const dated=SPORTS_EVENTS_DATED.find(e=>iso>=e.start&&iso<=e.end);
+  if(dated) return dated;
+  return SPORTS_EVENTS_RECURRING.find(e=>mdInRange(md,e.fromMd,e.toMd))||null;
+}
+function activeTheme(){ return sportsEventTheme()||seasonalTheme(); }
 function applySeasonalTheme(){
-  const t=seasonalTheme(); const root=document.documentElement.style;
+  const t=activeTheme(); const root=document.documentElement.style;
   const badge=document.getElementById('seasonBadge');
-  if(!t){ root.removeProperty('--seasonal-accent'); if(badge)badge.textContent=''; return; }
+  if(!t){ root.removeProperty('--seasonal-accent'); if(badge)badge.textContent=''; return null; }
   root.setProperty('--seasonal-accent', t.accent);
   if(badge)badge.textContent=t.icon;
   if(t.particles==='snow') startSnow();
