@@ -57,7 +57,8 @@
   .board .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
   main.wrap{padding-top:var(--header-total-height)}
   .brand{display:flex;align-items:center;gap:9px;min-width:0}
-  .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
+  .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--seasonal-accent,var(--amber));box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
+  #seasonBadge{font-size:15px;margin-left:2px;line-height:1}
   .brand h1{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:clamp(16px,4.4vw,24px);line-height:1.04}
   .who-pill{flex-shrink:0;display:flex;align-items:center;gap:7px;background:rgba(235,238,234,.07);border:1px solid var(--board-line);border-radius:30px;padding:5px 10px 5px 12px;cursor:pointer}
   .who-pill .nm{font-family:'Oswald',sans-serif;font-weight:500;font-size:15px;color:var(--paper)}
@@ -196,6 +197,22 @@
   .pwr-targets{display:flex;flex-wrap:wrap;gap:8px}
   @keyframes confFall{to{transform:translateY(108vh) rotate(720deg);opacity:.25}}
   @keyframes revPop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes pulseWait{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+  @keyframes resultPop{0%{opacity:0;transform:scale(.4) translateY(10px)}55%{opacity:1;transform:scale(1.16) translateY(0)}80%{transform:scale(.95)}100%{transform:scale(1)}}
+  @keyframes shakeX{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}30%{transform:translateX(9px)}45%{transform:translateX(-7px)}60%{transform:translateX(6px)}75%{transform:translateX(-4px)}90%{transform:translateX(3px)}}
+  @keyframes glowPulseWin{0%,100%{box-shadow:0 0 30px rgba(47,165,108,.35)}50%{box-shadow:0 0 70px rgba(47,165,108,.7)}}
+  @keyframes glowPulseLose{0%,100%{box-shadow:0 0 24px rgba(221,81,71,.25)}50%{box-shadow:0 0 48px rgba(221,81,71,.5)}}
+  @keyframes flashGreen{0%{background:#EBEEEA}30%{background:#bdeed4}100%{background:#EBEEEA}}
+  @keyframes flashRed{0%{background:#EBEEEA}30%{background:#f6c6c2}100%{background:#EBEEEA}}
+  @keyframes reelStop{0%{transform:scale(1.3) rotate(-4deg)}60%{transform:scale(.92) rotate(2deg)}100%{transform:scale(1) rotate(0)}}
+  @keyframes reelSpinBlur{0%,100%{transform:scaleY(1) translateY(0)}50%{transform:scaleY(.78) translateY(3px)}}
+  @keyframes reelGlow{0%{box-shadow:0 0 0 rgba(243,169,59,0)}40%{box-shadow:0 0 22px rgba(243,169,59,.9)}100%{box-shadow:0 0 0 rgba(243,169,59,0)}}
+  @keyframes machineShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+  @keyframes sparklePop{0%{opacity:1;transform:scale(0) translateY(0)}100%{opacity:0;transform:scale(1) translateY(-24px)}}
+  @keyframes giftReveal{0%{opacity:0;transform:scale(.6) rotate(-8deg)}60%{opacity:1;transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+  @keyframes splashGlow{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+  @keyframes splashFadeOut{to{opacity:0;visibility:hidden}}
+  @keyframes snowFall{to{transform:translateY(110vh) translateX(20px)}}
   #toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(16px);z-index:90;background:#0C1B18;color:#EBEEEA;border:1px solid var(--amber-soft);border-radius:12px;padding:13px 18px;max-width:88%;font-size:13px;line-height:1.5;box-shadow:0 8px 28px rgba(0,0,0,.45);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:pre-line;text-align:center}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #cmodal{position:fixed;inset:0;z-index:95;background:rgba(12,27,24,.62);display:flex;align-items:center;justify-content:center;padding:28px}
@@ -294,7 +311,7 @@
   <div id="appRoot" style="display:none">
   <header class="board">
     <div class="wrap">
-      <div class="brand"><span class="dot"></span><h1 id="scrTitle">Rona Defence League</h1></div>
+      <div class="brand"><span class="dot"></span><h1 id="scrTitle">Rona Defence League</h1><span id="seasonBadge"></span></div>
       <label class="who-pill" onclick="doLogout()">
         <span class="nm" id="whoName">Moberg</span>
         <span class="adm" id="whoAdm">ADMIN</span>
@@ -1291,11 +1308,90 @@ async function settleRound(){
   }
   await saveRound(r); await saveState(); await ensureOpenRound(); renderAll(); showRevealOverlay(r, monthNote);
 }
-function confettiBurst(parent){
-  const colors=['#F3A93B','#2FA56C','#DD5147','#EBEEEA','#C98B2E'];
-  for(let k=0;k<70;k++){ const c=document.createElement('div'); const x=Math.random()*100, dur=1.1+Math.random()*1.4, size=6+Math.random()*8;
-    c.style.cssText='position:absolute;top:-24px;left:'+x+'%;width:'+size+'px;height:'+size+'px;background:'+colors[k%colors.length]+';border-radius:2px;animation:confFall '+dur+'s linear forwards;transform:rotate('+(Math.random()*360)+'deg)';
-    parent.appendChild(c); setTimeout(()=>c.remove(), dur*1000+150); }
+function confettiBurst(parent, opts={}){
+  const colors=opts.colors||['#F3A93B','#2FA56C','#DD5147','#EBEEEA','#C98B2E','#4FC3F7'];
+  const n=opts.count||80;
+  for(let k=0;k<n;k++){ const c=document.createElement('div'); const x=Math.random()*100, dur=1.0+Math.random()*1.6, size=5+Math.random()*9, delay=Math.random()*.25;
+    const round=Math.random()<.4;
+    c.style.cssText='position:absolute;top:-24px;left:'+x+'%;width:'+size+'px;height:'+size+'px;background:'+colors[k%colors.length]+';border-radius:'+(round?'50%':'2px')+';animation:confFall '+dur+'s '+delay+'s cubic-bezier(.35,.6,.65,1) forwards;transform:rotate('+(Math.random()*360)+'deg)';
+    parent.appendChild(c); setTimeout(()=>c.remove(), (dur+delay)*1000+150); }
+}
+// Sparkle-glimt, der popper op og forsvinder — bruges under skrabelodet, mens man skraber.
+function sparkleAt(parent, xPct, yPct){
+  const s=document.createElement('div'); const size=6+Math.random()*6;
+  s.textContent='✨'; s.style.cssText='position:absolute;left:'+xPct+'%;top:'+yPct+'%;font-size:'+size+'px;pointer-events:none;animation:sparklePop .6s ease-out forwards;z-index:5';
+  parent.appendChild(s); setTimeout(()=>s.remove(), 620);
+}
+
+// Kort brand-splash ved rigtig login (ikke ved almindelige skærmskift) — logo-glød + klubnavn,
+// fader selv væk igen efter under et sekund. Kan ikke skippes-irriterende, fordi den er så kort.
+function showLaunchSplash(){
+  let ov=document.getElementById('launchSplash'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='launchSplash';
+  ov.style.cssText='position:fixed;inset:0;background:var(--board);z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
+  ov.innerHTML=`<div style="width:16px;height:16px;border-radius:50%;background:var(--seasonal-accent,var(--amber));animation:splashGlow 1s ease-in-out infinite;box-shadow:0 0 34px 6px var(--seasonal-accent,rgba(243,169,59,.55))"></div>
+    <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:21px;color:#EBEEEA;opacity:0;animation:revPop .5s .15s forwards">Rona Defence League</div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>{ ov.style.transition='opacity .4s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),420); }, 750);
+}
+
+/* =================== SÆSON-/HØJTIDSTEMA =================== */
+// Rene dato-tjek, ingen ekstern kalender. Påske er hardcodet pr. år (de nære sæsoner appen reelt
+// bruges i) — nemt at udvide med flere år, hvis klubben stadig kører om nogle år.
+const EASTER_DATES={2026:'2026-04-05',2027:'2027-03-28',2028:'2028-04-16',2029:'2029-04-01'};
+function seasonalTheme(){
+  const now=new Date(); const md=now.toISOString().slice(5,10); const mm=+md.slice(0,2);
+  if(md>='12-27'||md<='01-06') return {key:'nytaar',label:'Nytår',icon:'🎆',accent:'#F3A93B',particles:'confetti'};
+  if(md>='12-01'&&md<='12-26') return {key:'jul',label:'Jul',icon:'🎄',accent:'#DD5147',particles:'snow'};
+  const easterIso=EASTER_DATES[now.getFullYear()];
+  if(easterIso){ const diff=Math.round((now-new Date(easterIso+'T00:00:00'))/86400000); if(diff>=-5&&diff<=1) return {key:'paaske',label:'Påske',icon:'🐣',accent:'#8FD19E',particles:null}; }
+  if(mm>=9&&mm<=11) return {key:'efteraar',label:'Efterår',icon:'🍂',accent:'#C98B2E',particles:null};
+  return null;
+}
+function applySeasonalTheme(){
+  const t=seasonalTheme(); const root=document.documentElement.style;
+  const badge=document.getElementById('seasonBadge');
+  if(!t){ root.removeProperty('--seasonal-accent'); if(badge)badge.textContent=''; return; }
+  root.setProperty('--seasonal-accent', t.accent);
+  if(badge)badge.textContent=t.icon;
+  if(t.particles==='snow') startSnow();
+  if(t.particles==='confetti' && !sessionStorage.getItem('rdl_nytaar_conf')){
+    sessionStorage.setItem('rdl_nytaar_conf','1');
+    const layer=document.createElement('div'); layer.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:98;overflow:hidden';
+    document.body.appendChild(layer); confettiBurst(layer,{count:90}); setTimeout(()=>layer.remove(),3000);
+  }
+  return t;
+}
+const BIRTHDAYS={Getter:'08-14',Joachim:'06-15',Moberg:'05-07'};
+function isBirthdayToday(name){ return BIRTHDAYS[name]===new Date().toISOString().slice(5,10); }
+function maybeShowBirthdayBanner(){
+  if(!S||!S.user||!isBirthdayToday(S.user))return;
+  const key='rdl_bday_'+S.user+'_'+new Date().toISOString().slice(0,10);
+  if(localStorage.getItem(key))return;
+  localStorage.setItem(key,'1');
+  showBirthdayOverlay(S.user);
+}
+function showBirthdayOverlay(name){
+  let ov=document.getElementById('bdayOverlay'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='bdayOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:80;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:28px;text-align:center';
+  ov.innerHTML=`<div style="font-size:64px;animation:giftReveal .6s cubic-bezier(.34,1.56,.64,1) forwards">🎂</div>
+    <div style="font-family:Oswald,sans-serif;font-size:28px;font-weight:700;color:#F3A93B">Tillykke, ${nameOf(name)}!</div>
+    <div style="font-size:14px;color:#EBEEEA;max-width:280px">Hele Rona Defence League ønsker dig en fantastisk fødselsdag 🎉</div>
+    <button class="btn btn-dark" style="margin-top:10px" onclick="document.getElementById('bdayOverlay').remove()">Tak! 🥳</button>`;
+  document.body.appendChild(ov);
+  confettiBurst(ov,{count:120}); setTimeout(()=>confettiBurst(ov,{count:60}),300);
+}
+function startSnow(){
+  if(document.getElementById('snowLayer'))return;
+  const layer=document.createElement('div'); layer.id='snowLayer';
+  layer.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden';
+  document.body.appendChild(layer);
+  for(let i=0;i<16;i++) setTimeout(()=>{
+    const f=document.createElement('div'); const x=Math.random()*100, dur=9+Math.random()*9, size=10+Math.random()*11;
+    f.textContent='❄'; f.style.cssText='position:absolute;top:-24px;left:'+x+'%;font-size:'+size+'px;color:rgba(235,238,234,.55);animation:snowFall '+dur+'s linear infinite';
+    layer.appendChild(f);
+  }, i*550);
 }
 function showRevealOverlay(r, monthNote){
   const subs=legNames(r).filter(n=>r.picks[n]);
@@ -1310,18 +1406,25 @@ function showRevealOverlay(r, monthNote){
   const box=ov.querySelector('#revLegs');
   subs.forEach(n=>{ const p=r.picks[n]; const row=document.createElement('div');
     row.style.cssText='display:flex;justify-content:space-between;align-items:center;background:#EBEEEA;border-radius:11px;padding:11px 13px;opacity:0';
-    row.innerHTML='<div style="text-align:left"><div style="font-family:Oswald,sans-serif;font-weight:600;color:#0C1B18">'+nameOf(n)+'</div><div style="font-size:12px;color:#5a6b62">'+p.desc+' · '+p.odds.toFixed(2)+'</div></div><div class="rtick" style="font-size:24px;width:30px;text-align:center">⏳</div>';
+    row.innerHTML='<div style="text-align:left"><div style="font-family:Oswald,sans-serif;font-weight:600;color:#0C1B18">'+nameOf(n)+'</div><div style="font-size:12px;color:#5a6b62">'+p.desc+' · '+p.odds.toFixed(2)+'</div></div><div class="rtick" style="font-size:24px;width:30px;text-align:center;animation:pulseWait 1.1s ease-in-out infinite">⏳</div>';
     box.appendChild(row); });
   const rows=[...box.children]; let i=0;
   const reveal=()=>{
     if(i>=subs.length){ setTimeout(finish,400); return; }
     const p=r.picks[subs[i]]; const row=rows[i]; row.style.animation='revPop .35s forwards';
-    setTimeout(()=>{ row.querySelector('.rtick').textContent = p.hit==='void'?'∅':p.hit?'✅':'❌'; i++; setTimeout(reveal,680); },420);
+    setTimeout(()=>{
+      const tick=row.querySelector('.rtick');
+      tick.style.animation='none'; tick.textContent = p.hit==='void'?'∅':p.hit?'✅':'❌';
+      row.style.animation = p.hit===true ? 'flashGreen .7s ease-out' : p.hit===false ? 'flashRed .7s ease-out' : 'none';
+      i++; setTimeout(reveal,680);
+    },420);
   };
   const finish=()=>{
     const net=couponNet(r);
-    ov.querySelector('#revResult').innerHTML='<div style="font-family:Oswald,sans-serif;font-size:36px;font-weight:700;color:'+(won?'#2FA56C':'#DD5147')+'">'+(won?'VANDT! 🎉':'TABT')+'</div>'+(r.stake?'<div style="font-family:JetBrains Mono,monospace;color:#EBEEEA;margin-top:4px">'+(net>=0?'+':'')+net.toFixed(0)+' kr</div>':'')+(monthNote?'<div style="font-size:12px;color:#C98B2E;margin-top:14px;max-width:300px;line-height:1.5">📅 '+monthNote+'</div>':'')+'<button class="btn btn-ghost" style="margin-top:18px" onclick="shareCoupon(\''+r.id+'\')">📤 Del kupon som billede</button>'+'<button class="btn btn-dark" style="margin-top:8px" onclick="document.getElementById(\'revealOverlay\').remove();go(\'home\')">Videre</button>';
-    if(won)confettiBurst(ov);
+    ov.querySelector('#revResult').innerHTML='<div id="revBig" style="font-family:Oswald,sans-serif;font-size:38px;font-weight:700;color:'+(won?'#2FA56C':'#DD5147')+';opacity:0">'+(won?'VANDT! 🎉':'TABT')+'</div>'+(r.stake?'<div style="font-family:JetBrains Mono,monospace;color:#EBEEEA;margin-top:4px">'+(net>=0?'+':'')+net.toFixed(0)+' kr</div>':'')+(monthNote?'<div style="font-size:12px;color:#C98B2E;margin-top:14px;max-width:300px;line-height:1.5">📅 '+monthNote+'</div>':'')+'<button class="btn btn-ghost" style="margin-top:18px" onclick="shareCoupon(\''+r.id+'\')">📤 Del kupon som billede</button>'+'<button class="btn btn-dark" style="margin-top:8px" onclick="document.getElementById(\'revealOverlay\').remove();go(\'home\')">Videre</button>';
+    const big=ov.querySelector('#revBig'); big.style.animation='resultPop .55s cubic-bezier(.34,1.56,.64,1) forwards';
+    if(won){ confettiBurst(ov,{count:110}); setTimeout(()=>confettiBurst(ov,{count:50}),260); ov.style.animation='glowPulseWin 1.8s ease-in-out infinite .5s'; }
+    else{ ov.style.animation='shakeX .5s ease-in-out'; }
   };
   setTimeout(reveal,450);
 }
@@ -1622,25 +1725,30 @@ function showSpinOverlay(result,onKeep){
   ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:28px;text-align:center';
   const icons=POWER_ORDER.map(t=>POWERS[t].icon);
   ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎰 Enarmet tyveknægt</div>
-    <div style="display:flex;gap:10px;background:#0C1B18;border:3px solid #C98B2E;border-radius:16px;padding:16px 14px;box-shadow:0 0 40px rgba(243,169,59,.25)">
-      ${[0,1,2].map(i=>`<div style="width:74px;height:90px;overflow:hidden;background:#EBEEEA;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:50px"><span id="reel${i}" style="display:inline-block;transition:transform .12s">${icons[i%icons.length]}</span></div>`).join('')}
+    <div id="machine" style="display:flex;gap:10px;background:#0C1B18;border:3px solid #C98B2E;border-radius:16px;padding:16px 14px;box-shadow:0 0 40px rgba(243,169,59,.25)">
+      ${[0,1,2].map(i=>`<div id="reelBox${i}" style="width:74px;height:90px;overflow:hidden;background:#EBEEEA;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:50px"><span id="reel${i}" style="display:inline-block;transition:transform .12s">${icons[i%icons.length]}</span></div>`).join('')}
     </div>
     <div id="spinName" style="font-family:Oswald,sans-serif;font-size:20px;color:#EBEEEA;min-height:30px;max-width:320px"></div>
     <div id="spinStatus" style="font-size:12px;color:#9fb0aa;min-height:16px">Snurrer…</div>
     <div id="spinBtn" style="min-height:46px"></div>`;
   document.body.appendChild(ov);
   const reelEls=[0,1,2].map(i=>ov.querySelector('#reel'+i));
+  const reelBoxEls=[0,1,2].map(i=>ov.querySelector('#reelBox'+i));
   const statusEl=ov.querySelector('#spinStatus');
   const resIcon=POWERS[result].icon;
   const rand=()=>icons[Math.floor(Math.random()*icons.length)];
   const winRound=1+Math.floor(Math.random()*3);   // 1-3 spins før gevinsten lander
   let round=1;
   function spinReels(targets,onDone){
-    const cyc=setInterval(()=>reelEls.forEach(el=>el.textContent=rand()), 70);
+    reelEls.forEach(el=>el.style.animation='reelSpinBlur .11s ease-in-out infinite');
+    const cyc=setInterval(()=>reelEls.forEach(el=>el.textContent=rand()), 65);
     setTimeout(()=>{ clearInterval(cyc); let k=0;
-      const stopOne=()=>{ if(k<3){ const el=reelEls[k]; el.textContent=targets[k]; el.style.transform='scale(1.18)'; setTimeout(()=>el.style.transform='scale(1)',120); k++; setTimeout(stopOne,240); } else onDone(); };
+      const stopOne=()=>{ if(k<3){ const el=reelEls[k]; const box=reelBoxEls[k];
+          el.style.animation='none'; el.textContent=targets[k]; el.style.animation='reelStop .32s cubic-bezier(.34,1.56,.64,1)';
+          box.style.animation='reelGlow .4s ease-out';
+          k++; setTimeout(stopOne,260); } else onDone(); };
       stopOne();
-    }, 520);
+    }, 560);
   }
   function nextRound(){
     statusEl.textContent='Snurrer…';
@@ -1651,9 +1759,10 @@ function showSpinOverlay(result,onKeep){
       spinReels([resIcon,resIcon,resIcon],()=>{
         statusEl.textContent='GEVINST! 🎉';
         ov.querySelector('#spinName').textContent=POWERS[result].name+' — '+POWERS[result].desc;
+        ov.querySelector('#machine').style.animation='machineShake .4s ease-in-out, glowPulseWin 1.6s ease-in-out infinite .4s';
         ov.querySelector('#spinBtn').innerHTML='<button class="btn btn-dark" id="keepBtn">Behold i arsenal</button>';
         ov.querySelector('#keepBtn').onclick=()=>{ ov.remove(); onKeep(); };
-        if(typeof confettiBurst==='function')confettiBurst(ov);
+        if(typeof confettiBurst==='function')confettiBurst(ov,{count:90});
       });
     }
   }
@@ -1770,9 +1879,9 @@ function showGiftOverlay(item,onKeep){
   ov=document.createElement('div'); ov.id='giftOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:28px;text-align:center';
   ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎟️ Skrab dagens gave</div>
-    <div style="position:relative;width:${SZ}px;height:${SZ}px;border-radius:20px;overflow:hidden;box-shadow:0 0 40px rgba(243,169,59,.25)">
-      <div style="position:absolute;inset:0;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px">${item.icon}</div>
-      <canvas id="scratchCanvas" width="${SZ}" height="${SZ}" style="position:absolute;inset:0;touch-action:none;cursor:pointer"></canvas>
+    <div id="scratchWrap" style="position:relative;width:${SZ}px;height:${SZ}px;border-radius:20px;overflow:hidden;box-shadow:0 0 40px rgba(243,169,59,.25)">
+      <div id="giftIcon" style="position:absolute;inset:0;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px">${item.icon}</div>
+      <canvas id="scratchCanvas" width="${SZ}" height="${SZ}" style="position:absolute;inset:0;touch-action:none;cursor:pointer;transition:opacity .4s ease,transform .4s ease"></canvas>
     </div>
     <div id="giftNameReveal" style="font-family:'Oswald';font-size:22px;font-weight:600;color:#EBEEEA;min-height:30px"></div>
     <div id="scratchHint" style="font-size:12px;color:#9fb0aa">Skrab feltet med fingeren for at afsløre 👆</div>
@@ -1781,16 +1890,23 @@ function showGiftOverlay(item,onKeep){
   document.body.appendChild(ov);
 
   const canvas=document.getElementById('scratchCanvas'), ctx=canvas.getContext('2d');
-  ctx.fillStyle='#B9C0BB'; ctx.fillRect(0,0,SZ,SZ);
-  ctx.fillStyle='rgba(12,27,24,.35)';
-  for(let y=0;y<SZ;y+=14) ctx.fillRect(0,y,SZ,7);
+  const foil=ctx.createLinearGradient(0,0,SZ,SZ);
+  foil.addColorStop(0,'#DADFDC'); foil.addColorStop(.25,'#F4F6F4'); foil.addColorStop(.45,'#A9B2AD');
+  foil.addColorStop(.6,'#EDEFEC'); foil.addColorStop(.8,'#BCC3BF'); foil.addColorStop(1,'#E7EAE7');
+  ctx.fillStyle=foil; ctx.fillRect(0,0,SZ,SZ);
+  ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2;
+  for(let d=-SZ;d<SZ*2;d+=16){ ctx.beginPath(); ctx.moveTo(d,0); ctx.lineTo(d+SZ,SZ); ctx.stroke(); }
+  ctx.fillStyle='rgba(243,169,59,.16)'; ctx.fillRect(0,0,SZ,SZ);
   ctx.fillStyle='#0C1B18'; ctx.textAlign='center'; ctx.font='700 13px Oswald, sans-serif';
   ctx.fillText('SKRAB HER', SZ/2, SZ/2+6); ctx.font='26px sans-serif'; ctx.fillText('🎟️', SZ/2, SZ/2-24);
 
-  let scratching=false, revealed=false;
+  const wrap=document.getElementById('scratchWrap');
+  let scratching=false, revealed=false, lastSparkle=0;
   function reveal(){
     if(revealed)return; revealed=true;
-    canvas.remove();
+    canvas.style.opacity='0'; canvas.style.transform='scale(1.15)';
+    setTimeout(()=>canvas.remove(), 400);
+    const iconEl=document.getElementById('giftIcon'); iconEl.style.animation='giftReveal .55s cubic-bezier(.34,1.56,.64,1) forwards';
     document.getElementById('giftNameReveal').textContent=item.name;
     document.getElementById('scratchHint').style.display='none';
     document.getElementById('scratchSkip').style.display='none';
@@ -1804,8 +1920,9 @@ function showGiftOverlay(item,onKeep){
     for(let i=3;i<data.length;i+=4*8){ sampled++; if(data[i]<10)clear++; }
     if(clear/sampled>0.5) reveal();
   }
-  canvas.addEventListener('pointerdown', e=>{ scratching=true; canvas.setPointerCapture(e.pointerId); const p=posFromEvent(e); scratchAt(p.x,p.y); checkProgress(); });
-  canvas.addEventListener('pointermove', e=>{ if(!scratching)return; const p=posFromEvent(e); scratchAt(p.x,p.y); checkProgress(); });
+  function maybeSparkle(p){ const now=Date.now(); if(now-lastSparkle<90)return; lastSparkle=now; sparkleAt(wrap, p.x/SZ*100, p.y/SZ*100); }
+  canvas.addEventListener('pointerdown', e=>{ scratching=true; canvas.setPointerCapture(e.pointerId); const p=posFromEvent(e); scratchAt(p.x,p.y); maybeSparkle(p); checkProgress(); });
+  canvas.addEventListener('pointermove', e=>{ if(!scratching)return; const p=posFromEvent(e); scratchAt(p.x,p.y); maybeSparkle(p); checkProgress(); });
   canvas.addEventListener('pointerup', ()=>{ scratching=false; });
   canvas.addEventListener('pointercancel', ()=>{ scratching=false; });
   document.getElementById('scratchSkip').onclick=reveal;
@@ -2387,12 +2504,15 @@ auth.onAuthStateChanged(async user=>{
   }
   MY_NAME=inv.name;
   loginEl.style.display='none'; appEl.style.display='';
+  showLaunchSplash();
   syncHeaderHeight();
+  applySeasonalTheme();
   await startSync();
   await ensureOpenRound();
   if(S.auction&&S.auction.running)startAuctionTimer();
   resetF(); updateWho(); renderAll(); go(currentScreen||'home');
   refreshPushTokenIfGranted();
+  setTimeout(maybeShowBirthdayBanner, 900);
 });
 renderLoginMode();
 if(navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(e=>console.error(e));
