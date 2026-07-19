@@ -1365,32 +1365,168 @@ function seasonalTheme(){
 // juli 2026) — skal opdateres manuelt, når næste udgave kendes; (b) TILBAGEVENDENDE mønstre
 // (samme tid hvert år — Grand Slams, PDC-VM, CL-finalen) angivet som MM-DD, ingen årstal
 // nødvendigt. Sportstemaer har forrang over det generelle sæsontema, når begge er aktive.
+// "rich" = fylder rigtig meget (skifter selve lampens farve + badge + splash-undertitel).
+// "light" = kun et lille badge-ikon ved logoet — den gule/hvide lampe i hjørnet forbliver
+// altid udgangspunktet og skifter IKKE farve for de små sjove/kommercielle mærkedage.
 const SPORTS_EVENTS_DATED=[
-  {key:'vm-fodbold-2026',label:'VM i fodbold',icon:'⚽',accent:'#2FA56C',start:'2026-06-11',end:'2026-07-19'},
-  {key:'haandbold-em-k-2026',label:'Håndbold-EM (kvinder)',icon:'🤾‍♀️',accent:'#DD5147',start:'2026-12-03',end:'2026-12-20'},
-  {key:'haandbold-vm-h-2027',label:'Håndbold-VM (herrer)',icon:'🤾',accent:'#4FC3F7',start:'2027-01-13',end:'2027-01-31'},
+  {key:'vm-fodbold-2026',label:'VM i fodbold',icon:'⚽',accent:'#2FA56C',tier:'rich',start:'2026-06-11',end:'2026-07-19'},
+  {key:'haandbold-em-k-2026',label:'Håndbold-EM (kvinder)',icon:'🤾‍♀️',accent:'#DD5147',tier:'rich',start:'2026-12-03',end:'2026-12-20'},
+  {key:'haandbold-vm-h-2027',label:'Håndbold-VM (herrer)',icon:'🤾',accent:'#4FC3F7',tier:'rich',start:'2027-01-13',end:'2027-01-31'},
+  // Mærkedage/højtider/store turneringer med fast dato pr. udgave — kurateret liste (research juli 2026).
+  {key:"sommersolhverv-arets-l-ngste-dag-2026",label:"Sommersolhverv / årets længste dag",icon:"☀️",accent:"#2FA56C",tier:"rich",start:"2026-06-21",end:"2026-06-21"},
+  {key:"efterarsj-vnd-gn-2026",label:"Efterårsjævndøgn",icon:"🍂",accent:"#8FD19E",tier:"rich",start:"2026-09-22",end:"2026-09-23"},
+  {key:"ryder-cup-2026",label:"Ryder Cup",icon:"⛳",accent:"#DD5147",tier:"rich",start:"2026-09-25",end:"2026-09-27"},
+  {key:"vintertid-begynder-2026",label:"Vintertid begynder",icon:"✨",accent:"#C97F9E",tier:"light",start:"2026-10-25",end:"2026-10-25"},
+  {key:"allehelgenss-ndag-2026",label:"Allehelgenssøndag",icon:"🕯️",accent:"#8FD19E",tier:"rich",start:"2026-11-01",end:"2026-11-01"},
+  {key:"thanksgiving-2026",label:"Thanksgiving",icon:"🦃",accent:"#C98B2E",tier:"rich",start:"2026-11-26",end:"2026-11-26"},
+  {key:"black-friday-2026",label:"Black Friday",icon:"🛍️",accent:"#8FBF9F",tier:"light",start:"2026-11-27",end:"2026-11-27"},
+  {key:"1-s-ndag-i-advent-2026",label:"1. søndag i advent",icon:"🕯️",accent:"#C98B2E",tier:"rich",start:"2026-11-29",end:"2026-11-29"},
+  {key:"cyber-monday-2026",label:"Cyber Monday",icon:"💻",accent:"#C97F9E",tier:"light",start:"2026-11-30",end:"2026-11-30"},
+  {key:"2-s-ndag-i-advent-2026",label:"2. søndag i advent",icon:"🕯️",accent:"#DD5147",tier:"rich",start:"2026-12-06",end:"2026-12-06"},
+  {key:"3-s-ndag-i-advent-2026",label:"3. søndag i advent",icon:"🕯️",accent:"#8FD19E",tier:"rich",start:"2026-12-13",end:"2026-12-13"},
+  {key:"4-s-ndag-i-advent-2026",label:"4. søndag i advent",icon:"🕯️",accent:"#F3A93B",tier:"rich",start:"2026-12-20",end:"2026-12-20"},
+  {key:"vintersolhverv-2026",label:"Vintersolhverv",icon:"❄️",accent:"#C98B2E",tier:"rich",start:"2026-12-21",end:"2026-12-21"},
+  {key:"super-bowl-2027",label:"Super Bowl",icon:"🏈",accent:"#C98B2E",tier:"rich",start:"2027-02-01",end:"2027-02-28"},
+  {key:"forarsj-vnd-gn-2027",label:"Forårsjævndøgn",icon:"🌱",accent:"#F3A93B",tier:"rich",start:"2027-03-20",end:"2027-03-20"},
+  {key:"sk-rtorsdag-2027",label:"Skærtorsdag",icon:"🐣",accent:"#DD5147",tier:"rich",start:"2027-03-25",end:"2027-03-25"},
+  {key:"langfredag-2027",label:"Langfredag",icon:"✝️",accent:"#2FA56C",tier:"rich",start:"2027-03-26",end:"2027-03-26"},
+  {key:"paskedag-2027",label:"Påskedag",icon:"🐣",accent:"#F3A93B",tier:"rich",start:"2027-03-28",end:"2027-03-28"},
+  {key:"sommertid-begynder-2027",label:"Sommertid begynder",icon:"✨",accent:"#C98B6E",tier:"light",start:"2027-03-28",end:"2027-03-28"},
+  {key:"2-paskedag-2027",label:"2. påskedag",icon:"🐣",accent:"#DD5147",tier:"rich",start:"2027-03-29",end:"2027-03-29"},
+  {key:"the-masters-i-golf-2027",label:"The Masters i golf",icon:"⛳",accent:"#8FD19E",tier:"rich",start:"2027-04-01",end:"2027-04-30"},
+  {key:"kristi-himmelfartsdag-2027",label:"Kristi himmelfartsdag",icon:"✝️",accent:"#DD5147",tier:"rich",start:"2027-05-06",end:"2027-05-06"},
+  {key:"pinsedag-2027",label:"Pinsedag",icon:"🕊️",accent:"#2FA56C",tier:"rich",start:"2027-05-16",end:"2027-05-16"},
+  {key:"2-pinsedag-2027",label:"2. pinsedag",icon:"🕊️",accent:"#8FD19E",tier:"rich",start:"2027-05-17",end:"2027-05-17"},
+  {key:"giro-d-italia-2027",label:"Giro d'Italia",icon:"🚴",accent:"#4FC3F7",tier:"rich",start:"2027-05-01",end:"2027-05-31"},
+  {key:"sommersolhverv-arets-l-ngste-dag-2027",label:"Sommersolhverv / årets længste dag",icon:"☀️",accent:"#2FA56C",tier:"rich",start:"2027-06-21",end:"2027-06-21"},
+  {key:"kvindernes-vm-i-fodbold-2027",label:"Kvindernes VM i fodbold",icon:"⚽",accent:"#C98B2E",tier:"rich",start:"2027-06-24",end:"2027-07-25"},
+  {key:"vm-finalen-i-kvindefodbold-2027",label:"VM-finalen i kvindefodbold",icon:"⚽",accent:"#C98B2E",tier:"rich",start:"2027-07-25",end:"2027-07-25"},
+  {key:"the-open-i-golf-2027",label:"The Open i golf",icon:"⛳",accent:"#F3A93B",tier:"rich",start:"2027-07-01",end:"2027-07-31"},
+  {key:"efterarsj-vnd-gn-2027",label:"Efterårsjævndøgn",icon:"🍂",accent:"#8FD19E",tier:"rich",start:"2027-09-22",end:"2027-09-23"},
+  {key:"ryder-cup-2027",label:"Ryder Cup",icon:"⛳",accent:"#DD5147",tier:"rich",start:"2027-09-01",end:"2027-09-30"},
+  {key:"vm-i-landevejscykling-2027",label:"VM i landevejscykling",icon:"🚴",accent:"#2FA56C",tier:"rich",start:"2027-09-01",end:"2027-09-30"},
+  {key:"rugby-vm-for-herrer-2027",label:"Rugby-VM for herrer",icon:"🏉",accent:"#4FC3F7",tier:"rich",start:"2027-10-01",end:"2027-11-13"},
+  {key:"vintertid-begynder-2027",label:"Vintertid begynder",icon:"✨",accent:"#C97F9E",tier:"light",start:"2027-10-31",end:"2027-10-31"},
+  {key:"allehelgenss-ndag-2027",label:"Allehelgenssøndag",icon:"🕯️",accent:"#8FD19E",tier:"rich",start:"2027-11-07",end:"2027-11-07"},
+  {key:"rugby-vm-finalen-2027",label:"Rugby-VM-finalen",icon:"🏉",accent:"#8FD19E",tier:"rich",start:"2027-11-13",end:"2027-11-13"},
+  {key:"thanksgiving-2027",label:"Thanksgiving",icon:"🦃",accent:"#C98B2E",tier:"rich",start:"2027-11-25",end:"2027-11-25"},
+  {key:"black-friday-2027",label:"Black Friday",icon:"🛍️",accent:"#8FBF9F",tier:"light",start:"2027-11-26",end:"2027-11-26"},
+  {key:"1-s-ndag-i-advent-2027",label:"1. søndag i advent",icon:"🕯️",accent:"#C98B2E",tier:"rich",start:"2027-11-28",end:"2027-11-28"},
+  {key:"cyber-monday-2027",label:"Cyber Monday",icon:"💻",accent:"#C97F9E",tier:"light",start:"2027-11-29",end:"2027-11-29"},
+  {key:"giving-tuesday-2027",label:"Giving Tuesday",icon:"🎁",accent:"#B08FC9",tier:"light",start:"2027-11-30",end:"2027-11-30"},
+  {key:"2-s-ndag-i-advent-2027",label:"2. søndag i advent",icon:"🕯️",accent:"#DD5147",tier:"rich",start:"2027-12-05",end:"2027-12-05"},
+  {key:"3-s-ndag-i-advent-2027",label:"3. søndag i advent",icon:"🕯️",accent:"#8FD19E",tier:"rich",start:"2027-12-12",end:"2027-12-12"},
+  {key:"4-s-ndag-i-advent-2027",label:"4. søndag i advent",icon:"🕯️",accent:"#F3A93B",tier:"rich",start:"2027-12-19",end:"2027-12-19"},
+  {key:"vintersolhverv-2027",label:"Vintersolhverv",icon:"❄️",accent:"#C98B2E",tier:"rich",start:"2027-12-21",end:"2027-12-22"},
 ];
 const SPORTS_EVENTS_RECURRING=[
-  {key:'darts-vm',label:'VM i darts',icon:'🎯',accent:'#F3A93B',fromMd:'12-10',toMd:'01-03'},
-  {key:'aus-open',label:'Australian Open',icon:'🎾',accent:'#4FC3F7',fromMd:'01-10',toMd:'02-02'},
-  {key:'cl-finale',label:'Champions League-finalen nærmer sig',icon:'🏆',accent:'#2FA56C',fromMd:'05-20',toMd:'05-31'},
-  {key:'french-open',label:'Roland-Garros',icon:'🎾',accent:'#DD5147',fromMd:'05-20',toMd:'06-08'},
-  {key:'wimbledon',label:'Wimbledon',icon:'🎾',accent:'#EBEEEA',fromMd:'06-25',toMd:'07-13'},
-  {key:'us-open-tennis',label:'US Open',icon:'🎾',accent:'#F3A93B',fromMd:'08-28',toMd:'09-14'},
+  {key:'darts-vm',label:'VM i darts',icon:'🎯',accent:'#F3A93B',tier:'rich',fromMd:'12-10',toMd:'01-03'},
+  {key:'aus-open',label:'Australian Open',icon:'🎾',accent:'#4FC3F7',tier:'rich',fromMd:'01-10',toMd:'02-02'},
+  {key:'cl-finale',label:'Champions League-finalen nærmer sig',icon:'🏆',accent:'#2FA56C',tier:'rich',fromMd:'05-20',toMd:'05-31'},
+  {key:'french-open',label:'Roland-Garros',icon:'🎾',accent:'#DD5147',tier:'rich',fromMd:'05-20',toMd:'06-08'},
+  {key:'wimbledon',label:'Wimbledon',icon:'🎾',accent:'#EBEEEA',tier:'rich',fromMd:'06-25',toMd:'07-13'},
+  {key:'us-open-tennis',label:'US Open',icon:'🎾',accent:'#F3A93B',tier:'rich',fromMd:'08-28',toMd:'09-14'},
+  // Mærkedage/traditioner med fast dato hvert år — kurateret liste (research juli 2026).
+  {key:"international-sushidag",label:"International sushidag",icon:"🍣",accent:"#C98B6E",tier:"light",fromMd:"06-19",toMd:"06-19"},
+  {key:"verdens-flygtningedag",label:"Verdens flygtningedag",icon:"🕊️",accent:"#C98B6E",tier:"light",fromMd:"06-20",toMd:"06-20"},
+  {key:"sankthansaften",label:"Sankthansaften",icon:"🔥",accent:"#8FD19E",tier:"rich",fromMd:"06-23",toMd:"06-23"},
+  {key:"sankthansdag",label:"Sankthansdag",icon:"🔥",accent:"#C98B2E",tier:"rich",fromMd:"06-24",toMd:"06-24"},
+  {key:"canada-day",label:"Canada Day",icon:"🍁",accent:"#C98B6E",tier:"light",fromMd:"07-01",toMd:"07-01"},
+  {key:"usa-s-uafh-ngighedsdag",label:"USA's uafhængighedsdag",icon:"🎆",accent:"#C98B6E",tier:"light",fromMd:"07-04",toMd:"07-04"},
+  {key:"verdens-chokoladedag",label:"Verdens chokoladedag",icon:"🍫",accent:"#C9A86E",tier:"light",fromMd:"07-07",toMd:"07-07"},
+  {key:"frankrigs-nationaldag",label:"Frankrigs nationaldag",icon:"🇫🇷",accent:"#C9A86E",tier:"light",fromMd:"07-14",toMd:"07-14"},
+  {key:"world-emoji-day",label:"World Emoji Day",icon:"😀",accent:"#6EC9C0",tier:"light",fromMd:"07-17",toMd:"07-17"},
+  {key:"international-venskabsdag",label:"International venskabsdag",icon:"🤝",accent:"#C9A86E",tier:"light",fromMd:"07-30",toMd:"07-30"},
+  {key:"international-ldag",label:"International øldag",icon:"🍺",accent:"#6EC9C0",tier:"light",fromMd:"08-07",toMd:"08-07"},
+  {key:"international-kattedag",label:"International kattedag",icon:"🐱",accent:"#C9A86E",tier:"light",fromMd:"08-08",toMd:"08-08"},
+  {key:"international-venstrehandsdag",label:"International venstrehåndsdag",icon:"✋",accent:"#B08FC9",tier:"light",fromMd:"08-13",toMd:"08-13"},
+  {key:"international-hundedag",label:"International hundedag",icon:"🐶",accent:"#C98B6E",tier:"light",fromMd:"08-26",toMd:"08-26"},
+  {key:"flagdag-for-danmarks-udsendte",label:"Flagdag for Danmarks udsendte",icon:"🇩🇰",accent:"#F3A93B",tier:"rich",fromMd:"09-05",toMd:"09-05"},
+  {key:"verdens-selvmordsforebyggelsesdag",label:"Verdens selvmordsforebyggelsesdag",icon:"💚",accent:"#C97F9E",tier:"light",fromMd:"09-10",toMd:"09-10"},
+  {key:"international-talk-like-a-pirate-day",label:"International Talk Like a Pirate Day",icon:"🏴‍☠️",accent:"#B08FC9",tier:"light",fromMd:"09-19",toMd:"09-19"},
+  {key:"international-fredsdag",label:"International fredsdag",icon:"☮️",accent:"#6EC9C0",tier:"light",fromMd:"09-21",toMd:"09-21"},
+  {key:"verdens-hjertedag",label:"Verdens hjertedag",icon:"❤️",accent:"#B08FC9",tier:"light",fromMd:"09-29",toMd:"09-29"},
+  {key:"international-kaffedag",label:"International kaffedag",icon:"☕",accent:"#C9A86E",tier:"light",fromMd:"10-01",toMd:"10-01"},
+  {key:"kanelbullens-dag",label:"Kanelbullens dag",icon:"🥐",accent:"#C98B6E",tier:"light",fromMd:"10-04",toMd:"10-04"},
+  {key:"verdens-dyredag",label:"Verdens dyredag",icon:"🐾",accent:"#B08FC9",tier:"light",fromMd:"10-04",toMd:"10-04"},
+  {key:"verdens-mentale-sundhedsdag",label:"Verdens mentale sundhedsdag",icon:"🧠",accent:"#B08FC9",tier:"light",fromMd:"10-10",toMd:"10-10"},
+  {key:"verdens-f-devaredag",label:"Verdens fødevaredag",icon:"🍽️",accent:"#C98B6E",tier:"light",fromMd:"10-16",toMd:"10-16"},
+  {key:"halloween",label:"Halloween",icon:"🎃",accent:"#C98B2E",tier:"rich",fromMd:"10-31",toMd:"10-31"},
+  {key:"guy-fawkes-night",label:"Guy Fawkes Night",icon:"🎆",accent:"#C98B6E",tier:"light",fromMd:"11-05",toMd:"11-05"},
+  {key:"mortensaften",label:"Mortensaften",icon:"🦆",accent:"#DD5147",tier:"rich",fromMd:"11-10",toMd:"11-10"},
+  {key:"singles-day",label:"Singles' Day",icon:"💍",accent:"#C98B6E",tier:"light",fromMd:"11-11",toMd:"11-11"},
+  {key:"vabenstilstandsdagen-remembrance-day",label:"Våbenstilstandsdagen / Remembrance Day",icon:"🎗️",accent:"#C98B6E",tier:"light",fromMd:"11-11",toMd:"11-11"},
+  {key:"international-mandedag",label:"International mandedag",icon:"🙋‍♂️",accent:"#7FA8C9",tier:"light",fromMd:"11-19",toMd:"11-19"},
+  {key:"b-rnenes-internationale-dag",label:"Børnenes internationale dag",icon:"🧒",accent:"#8FBF9F",tier:"light",fromMd:"11-20",toMd:"11-20"},
+  {key:"verdens-aids-dag",label:"Verdens AIDS-dag",icon:"🎗️",accent:"#B08FC9",tier:"light",fromMd:"12-01",toMd:"12-01"},
+  {key:"international-cookiedag",label:"International cookiedag",icon:"🍪",accent:"#6EC9C0",tier:"light",fromMd:"12-04",toMd:"12-04"},
+  {key:"menneskerettighedsdagen",label:"Menneskerettighedsdagen",icon:"⚖️",accent:"#8F9FC9",tier:"light",fromMd:"12-10",toMd:"12-10"},
+  {key:"luciadag",label:"Luciadag",icon:"🕯️",accent:"#F3A93B",tier:"rich",fromMd:"12-13",toMd:"12-13"},
+  {key:"ugly-christmas-sweater-day",label:"Ugly Christmas Sweater Day",icon:"🎄",accent:"#8F9FC9",tier:"light",fromMd:"12-18",toMd:"12-18"},
+  {key:"lillejuleaften",label:"Lillejuleaften",icon:"🎄",accent:"#DD5147",tier:"rich",fromMd:"12-23",toMd:"12-23"},
+  {key:"juleaften",label:"Juleaften",icon:"🎄",accent:"#F3A93B",tier:"rich",fromMd:"12-24",toMd:"12-24"},
+  {key:"juledag",label:"Juledag",icon:"🎄",accent:"#4FC3F7",tier:"rich",fromMd:"12-25",toMd:"12-25"},
+  {key:"2-juledag",label:"2. juledag",icon:"🎄",accent:"#F3A93B",tier:"rich",fromMd:"12-26",toMd:"12-26"},
+  {key:"nytarsaften",label:"Nytårsaften",icon:"🎆",accent:"#C98B2E",tier:"rich",fromMd:"12-31",toMd:"12-31"},
+  {key:"nytarsdag",label:"Nytårsdag",icon:"🎆",accent:"#8FD19E",tier:"rich",fromMd:"01-01",toMd:"01-01"},
+  {key:"helligtrekonger",label:"Helligtrekonger",icon:"⭐",accent:"#4FC3F7",tier:"rich",fromMd:"01-06",toMd:"01-06"},
+  {key:"blue-monday",label:"Blue Monday",icon:"💙",accent:"#8F9FC9",tier:"light",fromMd:"01-18",toMd:"01-18"},
+  {key:"international-krammedag",label:"International krammedag",icon:"🤗",accent:"#C9A86E",tier:"light",fromMd:"01-21",toMd:"01-21"},
+  {key:"kyndelmisse",label:"Kyndelmisse",icon:"🕯️",accent:"#F3A93B",tier:"rich",fromMd:"02-02",toMd:"02-02"},
+  {key:"fastelavn",label:"Fastelavn",icon:"🎭",accent:"#F3A93B",tier:"rich",fromMd:"02-07",toMd:"02-07"},
+  {key:"international-pandekagedag-pancake-day",label:"International pandekagedag / Pancake Day",icon:"🥞",accent:"#4FC3F7",tier:"rich",fromMd:"02-09",toMd:"02-09"},
+  {key:"valentinsdag",label:"Valentinsdag",icon:"❤️",accent:"#8F9FC9",tier:"light",fromMd:"02-14",toMd:"02-14"},
+  {key:"random-acts-of-kindness-day",label:"Random Acts of Kindness Day",icon:"💛",accent:"#8F9FC9",tier:"light",fromMd:"02-17",toMd:"02-17"},
+  {key:"sj-ldne-sygdommes-dag",label:"Sjældne sygdommes dag",icon:"🎗️",accent:"#C98B6E",tier:"light",fromMd:"02-28",toMd:"02-28"},
+  {key:"kvindernes-internationale-kampdag",label:"Kvindernes internationale kampdag",icon:"👩",accent:"#C9A86E",tier:"light",fromMd:"03-08",toMd:"03-08"},
+  {key:"pi-dag",label:"Pi-dag",icon:"🥧",accent:"#8F9FC9",tier:"light",fromMd:"03-14",toMd:"03-14"},
+  {key:"saint-patrick-s-day",label:"Saint Patrick's Day",icon:"☘️",accent:"#7FA8C9",tier:"light",fromMd:"03-17",toMd:"03-17"},
+  {key:"international-lykkedag",label:"International lykkedag",icon:"🍀",accent:"#6EC9C0",tier:"light",fromMd:"03-20",toMd:"03-20"},
+  {key:"palmes-ndag",label:"Palmesøndag",icon:"🌿",accent:"#6EC9C0",tier:"light",fromMd:"03-21",toMd:"03-21"},
+  {key:"aprilsnar",label:"Aprilsnar",icon:"🤪",accent:"#C98B6E",tier:"light",fromMd:"04-01",toMd:"04-01"},
+  {key:"verdens-autismedag",label:"Verdens autismedag",icon:"🧩",accent:"#C97F9E",tier:"light",fromMd:"04-02",toMd:"04-02"},
+  {key:"verdens-sundhedsdag",label:"Verdens sundhedsdag",icon:"🏥",accent:"#C97F9E",tier:"light",fromMd:"04-07",toMd:"04-07"},
+  {key:"danmarks-bes-ttelse-1940",label:"Danmarks besættelse 1940",icon:"🎗️",accent:"#F3A93B",tier:"rich",fromMd:"04-09",toMd:"04-09"},
+  {key:"earth-day-jordens-dag",label:"Earth Day / Jordens dag",icon:"🌍",accent:"#C98B6E",tier:"light",fromMd:"04-22",toMd:"04-22"},
+  {key:"verdens-bogdag",label:"Verdens bogdag",icon:"📚",accent:"#C97F9E",tier:"light",fromMd:"04-23",toMd:"04-23"},
+  {key:"international-dansedag",label:"International dansedag",icon:"💃",accent:"#7FA8C9",tier:"light",fromMd:"04-29",toMd:"04-29"},
+  {key:"arbejdernes-internationale-kampdag",label:"Arbejdernes internationale kampdag",icon:"✊",accent:"#C97F9E",tier:"light",fromMd:"05-01",toMd:"05-01"},
+  {key:"star-wars-dag",label:"Star Wars-dag",icon:"⭐",accent:"#8F9FC9",tier:"light",fromMd:"05-04",toMd:"05-04"},
+  {key:"danmarks-befrielse-markeres-om-aftenen",label:"Danmarks befrielse markeres om aftenen",icon:"🇩🇰",accent:"#2FA56C",tier:"rich",fromMd:"05-04",toMd:"05-04"},
+  {key:"danmarks-befrielse",label:"Danmarks befrielse",icon:"🇩🇰",accent:"#DD5147",tier:"rich",fromMd:"05-05",toMd:"05-05"},
+  {key:"cinco-de-mayo",label:"Cinco de Mayo",icon:"🌮",accent:"#C9A86E",tier:"light",fromMd:"05-05",toMd:"05-05"},
+  {key:"mors-dag",label:"Mors dag",icon:"💐",accent:"#8FD19E",tier:"rich",fromMd:"05-09",toMd:"05-09"},
+  {key:"norges-nationaldag",label:"Norges nationaldag",icon:"🇳🇴",accent:"#6EC9C0",tier:"light",fromMd:"05-17",toMd:"05-17"},
+  {key:"geek-pride-day-international-n-rdedag",label:"Geek Pride Day / International nørdedag",icon:"🤓",accent:"#6EC9C0",tier:"light",fromMd:"05-25",toMd:"05-25"},
+  {key:"verdens-cykeldag",label:"Verdens cykeldag",icon:"🚲",accent:"#C9A86E",tier:"light",fromMd:"06-03",toMd:"06-03"},
+  {key:"grundlovsdag",label:"Grundlovsdag",icon:"🇩🇰",accent:"#F3A93B",tier:"rich",fromMd:"06-05",toMd:"06-05"},
+  {key:"fars-dag-i-danmark",label:"Fars dag i Danmark",icon:"👔",accent:"#C98B2E",tier:"rich",fromMd:"06-05",toMd:"06-05"},
 ];
 function mdInRange(md,from,to){ return from<=to ? (md>=from&&md<=to) : (md>=from||md<=to); }
+function mdToDayOfYear(md){ const [m,d]=md.split('-').map(Number); const cum=[0,31,59,90,120,151,181,212,243,273,304,334]; return cum[m-1]+d; }
+function mdSpanDays(fromMd,toMd){ const a=mdToDayOfYear(fromMd), b=mdToDayOfYear(toMd); return b>=a ? (b-a) : (365-a+b); }
+// Flere begivenheder kan overlappe (fx en 5-ugers VM-turnering og en enkelt-dags dansk tradition
+// midt i den). Den mest SPECIFIKKE (korteste vindue) vinder altid — så Sankthansaften slår
+// igennem selv midt i en VM-slutrunde, i stedet for at blive overdøvet af den.
 function sportsEventTheme(){
   const now=new Date(); const iso=now.toISOString().slice(0,10); const md=iso.slice(5,10);
-  const dated=SPORTS_EVENTS_DATED.find(e=>iso>=e.start&&iso<=e.end);
-  if(dated) return dated;
-  return SPORTS_EVENTS_RECURRING.find(e=>mdInRange(md,e.fromMd,e.toMd))||null;
+  const candidates=[];
+  SPORTS_EVENTS_DATED.forEach(e=>{ if(iso>=e.start&&iso<=e.end){ const span=(new Date(e.end+'T00:00:00')-new Date(e.start+'T00:00:00'))/86400000; candidates.push({e,span}); } });
+  SPORTS_EVENTS_RECURRING.forEach(e=>{ if(mdInRange(md,e.fromMd,e.toMd)){ candidates.push({e,span:mdSpanDays(e.fromMd,e.toMd)}); } });
+  if(!candidates.length) return null;
+  candidates.sort((a,b)=> (a.span-b.span) || ((a.e.tier==='rich'?0:1)-(b.e.tier==='rich'?0:1)));
+  return candidates[0].e;
 }
 function activeTheme(){ return sportsEventTheme()||seasonalTheme(); }
 function applySeasonalTheme(){
   const t=activeTheme(); const root=document.documentElement.style;
   const badge=document.getElementById('seasonBadge');
   if(!t){ root.removeProperty('--seasonal-accent'); if(badge)badge.textContent=''; return null; }
-  root.setProperty('--seasonal-accent', t.accent);
+  // "light"-mærkedage skifter kun det lille badge-ikon — selve lampen (den gule/hvide prik)
+  // bliver ved sit udgangspunkt. Kun "rich" (store højtider/sport/danske traditioner) får
+  // lampen til rent faktisk at skifte farve.
+  if(t.tier==='light') root.removeProperty('--seasonal-accent');
+  else root.setProperty('--seasonal-accent', t.accent);
   if(badge)badge.textContent=t.icon;
   if(t.particles==='snow') startSnow();
   if(t.particles==='confetti' && !sessionStorage.getItem('rdl_nytaar_conf')){
