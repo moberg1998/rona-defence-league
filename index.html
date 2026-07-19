@@ -57,8 +57,8 @@
   .board .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
   main.wrap{padding-top:var(--header-total-height)}
   .brand{display:flex;align-items:center;gap:9px;min-width:0}
-  .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--seasonal-accent,var(--amber));box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
-  #seasonBadge{font-size:15px;margin-left:2px;line-height:1}
+  .brand .dot{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px 1px rgba(243,169,59,.7)}
+  #seasonBadge{font-size:15px;margin-left:2px;line-height:1;cursor:pointer}
   .brand h1{font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:clamp(16px,4.4vw,24px);line-height:1.04}
   .who-pill{flex-shrink:0;display:flex;align-items:center;gap:7px;background:rgba(235,238,234,.07);border:1px solid var(--board-line);border-radius:30px;padding:5px 10px 5px 12px;cursor:pointer}
   .who-pill .nm{font-family:'Oswald',sans-serif;font-weight:500;font-size:15px;color:var(--paper)}
@@ -313,7 +313,7 @@
   <div id="appRoot" style="display:none">
   <header class="board">
     <div class="wrap">
-      <div class="brand"><span class="dot"></span><h1 id="scrTitle">Rona Defence League</h1><span id="seasonBadge"></span></div>
+      <div class="brand"><span class="dot"></span><h1 id="scrTitle">Rona Defence League</h1><span id="seasonBadge" onclick="showThemeInfo()"></span></div>
       <label class="who-pill" onclick="doLogout()">
         <span class="nm" id="whoName">Moberg</span>
         <span class="adm" id="whoAdm">ADMIN</span>
@@ -1414,8 +1414,9 @@ const QUOTES=[
 ];
 function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 // Kort, men lidt mere teatralsk brand-splash ved rigtig login (ikke ved almindelige skærmskift):
-// glødende ring-puls om prikken, klubnavn der popper ind, et tilfældigt citat, og — hvis der er
-// en aktiv sports-/højtidstema — et lille badge-ikon ved siden af navnet. ~3,7 sek. i alt.
+// glødende ring-puls om prikken (altid gul/hvid — klubbens faste kendetegn), klubnavn der
+// popper ind, et tilfældigt citat med god tid til at læse det, og — hvis der er en aktiv
+// sports-/højtidstema — et lille badge-ikon ved siden af navnet. ~6,3 sek. i alt.
 function showLaunchSplash(){
   let ov=document.getElementById('launchSplash'); if(ov)ov.remove();
   ov=document.createElement('div'); ov.id='launchSplash';
@@ -1424,17 +1425,17 @@ function showLaunchSplash(){
   const badge = t ? ` ${t.icon}` : '';
   const pick = QUOTES[Math.floor(Math.random()*QUOTES.length)];
   ov.innerHTML=`<div style="position:relative;width:16px;height:16px;display:flex;align-items:center;justify-content:center">
-      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s ease-out infinite"></div>
-      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s .5s ease-out infinite"></div>
-      <div style="width:16px;height:16px;border-radius:50%;background:var(--seasonal-accent,var(--amber));animation:splashGlow 1.2s ease-in-out infinite;box-shadow:0 0 38px 8px var(--seasonal-accent,rgba(243,169,59,.55))"></div>
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--amber);animation:splashRing 1.6s ease-out infinite"></div>
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--amber);animation:splashRing 1.6s .5s ease-out infinite"></div>
+      <div style="width:16px;height:16px;border-radius:50%;background:var(--amber);animation:splashGlow 1.2s ease-in-out infinite;box-shadow:0 0 38px 8px rgba(243,169,59,.55)"></div>
     </div>
     <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:22px;color:#EBEEEA;opacity:0;animation:revPop .55s .2s forwards;text-align:center">Rona Defence League${badge}</div>
-    <div style="max-width:320px;text-align:center;opacity:0;animation:splashSubtitle .5s 1s forwards">
+    <div style="max-width:320px;text-align:center;opacity:0;animation:splashSubtitle .5s .9s forwards">
       <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#EBEEEA;line-height:1.55;font-style:italic">"${escHtml(pick.q)}"</div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--seasonal-accent,#C98B2E);margin-top:8px;letter-spacing:.04em">— ${escHtml(pick.a)}</div>
     </div>`;
   document.body.appendChild(ov);
-  setTimeout(()=>{ ov.style.transition='opacity .5s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),520); }, 3200);
+  setTimeout(()=>{ ov.style.transition='opacity .6s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),620); }, 5700);
 }
 
 /* =================== SÆSON-/HØJTIDSTEMA =================== */
@@ -1614,9 +1615,10 @@ function applySeasonalTheme(){
   const t=activeTheme(); const root=document.documentElement.style;
   const badge=document.getElementById('seasonBadge');
   if(!t){ root.removeProperty('--seasonal-accent'); if(badge)badge.textContent=''; return null; }
-  // "light"-mærkedage skifter kun det lille badge-ikon — selve lampen (den gule/hvide prik)
-  // bliver ved sit udgangspunkt. Kun "rich" (store højtider/sport/danske traditioner) får
-  // lampen til rent faktisk at skifte farve.
+  // Selve lampen (den gule/hvide prik i hjørnet) skifter ALDRIG farve — den er og bliver
+  // klubbens faste kendetegn. Det dynamiske viser sig i stedet i det lille badge-ikon ved
+  // logoet (klik for at se hvad dagen er), i splash-citatets farve, og i eventuelle partikler
+  // (sne/konfetti). --seasonal-accent sættes stadig for "rich"-dage til de mindre detaljer.
   if(t.tier==='light') root.removeProperty('--seasonal-accent');
   else root.setProperty('--seasonal-accent', t.accent);
   if(badge)badge.textContent=t.icon;
@@ -1627,6 +1629,10 @@ function applySeasonalTheme(){
     document.body.appendChild(layer); confettiBurst(layer,{count:90}); setTimeout(()=>layer.remove(),3000);
   }
   return t;
+}
+function showThemeInfo(){
+  const t=activeTheme();
+  toast(t ? `${t.icon} I dag: ${t.label}` : "Ingen særlig mærkedag i dag — bare en helt almindelig dag i Rona Defence League.");
 }
 const BIRTHDAYS={Getter:'08-14',Joachim:'06-15',Moberg:'05-07'};
 function isBirthdayToday(name){ return BIRTHDAYS[name]===new Date().toISOString().slice(5,10); }
