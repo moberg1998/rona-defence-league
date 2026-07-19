@@ -1327,24 +1327,114 @@ function sparkleAt(parent, xPct, yPct){
 
 // Kort brand-splash ved rigtig login (ikke ved almindelige skærmskift) — logo-glød + klubnavn,
 // fader selv væk igen efter under et sekund. Kan ikke skippes-irriterende, fordi den er så kort.
+// Citater til launch-splashen — rent for sjov, ét tilfældigt hver gang man logger ind.
+// De sidste to grupper: "Ægte citater" er rigtige, dokumenterede udtalelser fra offentlige
+// personer (Bush, Yogi Berra, Trump) — de "Trump-agtige" er bevidst opdigtede (markeret med
+// "???" i attributionen, ligesom brugerens egen liste), ikke rigtige citater.
+const QUOTES=[
+  {q:"Hvis du rammer dit odds, vinder du som regel på dit spil.",a:"Moberg, 2026"},
+  {q:"Man kan ikke tabe et sikkert spil, medmindre det går galt.",a:"Moberg, 2026"},
+  {q:"Jo højere odds, desto mere kan man vinde. Men også desto mindre sandsynligt.",a:"Ukendt ekspert"},
+  {q:"Det vigtigste ved betting er at stoppe, mens man stadig har penge til det næste spil.",a:"Moberg"},
+  {q:"Jeg spiller aldrig med hjertet. Medmindre mit hold spiller.",a:"Anonym bettor"},
+  {q:"Et valuebet er et dårligt spil, der først bliver godt, hvis det går hjem.",a:"Ukendt"},
+  {q:"Statistik lyver aldrig. Den tager bare ofte fejl.",a:"Moberg"},
+  {q:"Hvis kampen ender 0-0, har ingen af holdene scoret.",a:"Lokal fodboldekspert"},
+  {q:"Det hold, der scorer flest mål, har en god chance for at vinde.",a:"Ukendt træner"},
+  {q:"Han er ubesejret i de kampe, han ikke har tabt.",a:"Sportsstudiet"},
+  {q:"En 2-0-føring er kun sikker, indtil modstanderen scorer tre.",a:"Moberg"},
+  {q:"Hvis målet havde været større, var den måske gået ind.",a:"Anonym kommentator"},
+  {q:"De skal bare blive ved med at angribe, men uden at glemme at forsvare.",a:"Taktisk geni"},
+  {q:"Man vinder ikke finaler ved at tabe dem.",a:"Moberg"},
+  {q:"Det bliver svært at holde nullet, hvis de scorer.",a:"Ukendt målmandstræner"},
+  {q:"Han løber ikke hurtigt, men han kommer langsomt frem.",a:"Anonym scout"},
+  {q:"Der er stadig alt at spille for, bortset fra det, der allerede er afgjort.",a:"Studievært"},
+  {q:"Form er midlertidig. Dårlige kuponer er permanente.",a:"Moberg"},
+  {q:"Jeg havde spillet den til odds 2, hvis oddset ikke kun var 1,40.",a:"Professionel amatør"},
+  {q:"Det var et godt spil. Resultatet var bare forkert.",a:"Alle sportsbettere nogensinde"},
+  {q:"Du kan ikke komme for sent, hvis de andre stadig venter på dig.",a:"Ukendt"},
+  {q:"Den tid, man bruger på ingenting, kunne man have brugt på noget andet.",a:"Moberg"},
+  {q:"Man lærer af sine fejl. Derfor er jeg efterhånden meget klog.",a:"Ukendt"},
+  {q:"Jeg tager én dag ad gangen. Nogle gange to, hvis jeg har travlt.",a:"Anonym livscoach"},
+  {q:"Problemer løser sjældent sig selv, men det gør opvasken heller ikke.",a:"Moberg"},
+  {q:"Hvis planen ikke virker, så gør det samme igen med mere selvtillid.",a:"Ukendt leder"},
+  {q:"Succes kommer ikke af sig selv. Det gør fiasko til gengæld overraskende ofte.",a:"Anonym iværksætter"},
+  {q:"Der findes ingen dumme spørgsmål, men nogle kommer meget tæt på.",a:"Ukendt lærer"},
+  {q:"Jeg ved ikke, hvad fremtiden bringer, men den kommer formentlig senere.",a:"Moberg"},
+  {q:"Det er aldrig for sent, medmindre de allerede har lukket.",a:"Ukendt"},
+  {q:"Den tidligste fugl står sandsynligvis også alt for tidligt op.",a:"Anonym B-menneske"},
+  {q:"Man skal ikke dvæle ved fortiden. Den er trods alt allerede sket.",a:"Moberg"},
+  {q:"Hvis du aldrig giver op, kan du fortsætte meget længe.",a:"Ukendt motivator"},
+  {q:"Alt er muligt. Noget er bare væsentligt mere usandsynligt.",a:"Realistisk optimist"},
+  {q:"Jeg følger altid min mavefornemmelse, især når jeg er sulten.",a:"Ukendt"},
+  {q:"Man skal ikke tage livet for alvorligt. Ingen kommer levende fra det.",a:"Ukendt version"},
+  {q:"Den bedste måde at undgå nederlag på er ikke at deltage. Det er dog også kedeligt.",a:"Moberg"},
+  {q:"Når én dør lukker, bør du kontrollere, om den bare skal skubbes.",a:"Anonym håndværker"},
+  {q:"Du misser 100 procent af de chancer, du ikke får mulighed for at misse.",a:"Ukendt"},
+  {q:"Jeg tænker, derfor bliver jeg forsinket.",a:"Anonym overtænker"},
+  {q:"Vi skal ikke arbejde hårdere. Vi skal bare nå mere på den samme tid.",a:"Mellemleder"},
+  {q:"Mødet kunne have været en mail, men så havde vi ikke fået holdt mødet.",a:"Ukendt chef"},
+  {q:"Vi har en flad organisation med mange ledelseslag.",a:"HR"},
+  {q:"Der findes ingen problemer, kun udfordringer, der også er problemer.",a:"Konsulent"},
+  {q:"Vi er foran tidsplanen, hvis vi ændrer tidsplanen.",a:"Projektleder"},
+  {q:"Deadline betyder ikke, at arbejdet skal være færdigt. Bare at tiden er gået.",a:"Ukendt"},
+  {q:"Vi skal tænke ud af boksen, men stadig følge skabelonen.",a:"Ledelsen"},
+  {q:"Jeg arbejder bedst under pres, hvilket er praktisk, fordi jeg altid er bagud.",a:"Anonym medarbejder"},
+  {q:"Hvis alle tager ansvar, er der ingen enkeltperson, man kan give skylden.",a:"Mellemleder"},
+  {q:"Vi har ikke manglende kommunikation. Vi har bare ikke fortalt hinanden noget.",a:"HR"},
+  {q:"Det er ikke en fejl. Det er en funktion, vi endnu ikke har forklaret.",a:"Udvikler"},
+  {q:"Appen virker perfekt, når man ikke bruger den forkert.",a:"Moberg, tech founder"},
+  {q:"Vi lancerer en minimumsløsning med maksimalt antal funktioner.",a:"Projektleder"},
+  {q:"Der er intet mere permanent end en midlertidig løsning.",a:"IT-afdelingen"},
+  {q:"Det burde virke. Jeg har kigget på koden.",a:"Anonym udvikler"},
+  {q:"Man er ikke rigtig sulten, før man har set menukortet.",a:"Moberg"},
+  {q:"En øl er aldrig alene, hvis der står en mere i køleskabet.",a:"Ukendt"},
+  {q:"Kalorier tæller kun, hvis man selv tæller dem.",a:"Anonym diætist"},
+  {q:"Det er ikke fastfood, hvis man spiser det langsomt.",a:"Ukendt"},
+  {q:"Morgenmad er dagens vigtigste måltid, medmindre man først står op til frokost.",a:"Moberg"},
+  {q:"Jeg drikker kun ved særlige lejligheder. Heldigvis er fredag ret særlig.",a:"Ukendt"},
+  {q:"Man kan ikke købe lykke, men man kan købe pizza, og det er tæt nok på.",a:"Anonym"},
+  {q:"Der er altid plads til dessert. Den ligger i en anden mave.",a:"Ukendt"},
+  {q:"Hvis salat var meningen, havde de ikke opfundet dressing.",a:"Anonym gastronom"},
+  {q:"Vand er vigtigt, især når det bruges til at brygge kaffe.",a:"Ukendt"},
+  {q:"Rarely is the question asked: Is our children learning?",a:"George W. Bush"},
+  {q:"It's déjà vu all over again.",a:"Yogi Berra"},
+  {q:"You can observe a lot just by watching.",a:"Yogi Berra"},
+  {q:"It ain't over till it's over.",a:"Yogi Berra"},
+  {q:"Whoever is operating this teleprompter is in big trouble.",a:"Donald Trump, 2025"},
+  {q:"The word 'is' are correct.",a:"George W. Bush"},
+  {q:"Ingen ved mere om odds end mig. Måske bookmakerne, men sandsynligvis ikke.",a:"Donald Trump???, 2026?"},
+  {q:"Det var et fantastisk spil. Et af de bedste tabte spil nogensinde.",a:"Donald Trump???, 2026?"},
+  {q:"Vi tabte ikke kuponen. Kuponen blev stjålet af et sent mål.",a:"Donald Trump???, 2026?"},
+  {q:"Jeg har set mange statistikker. De her var nogle af dem.",a:"Donald Trump???, 2026?"},
+  {q:"Folk siger, jeg er verdens bedste bettor. Mange meget kloge mennesker siger det.",a:"Donald Trump???, 2026?"},
+  {q:"Oddset var enormt. Ingen havde nogensinde set et så stort odds.",a:"Donald Trump???, 2026?"},
+  {q:"Vi kommer til at vinde så meget, at vi bliver trætte af at hæve pengene.",a:"Donald Trump???, 2026?"},
+  {q:"Det gik ikke hjem, men på mange måder gjorde det faktisk.",a:"Donald Trump???, 2026?"},
+];
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 // Kort, men lidt mere teatralsk brand-splash ved rigtig login (ikke ved almindelige skærmskift):
-// glødende ring-puls om prikken, klubnavn der popper ind, og — hvis der er en aktiv sports-/
-// højtidstema — en undertitel der viser hvad appen fejrer lige nu. ~2,5 sek. i alt.
+// glødende ring-puls om prikken, klubnavn der popper ind, et tilfældigt citat, og — hvis der er
+// en aktiv sports-/højtidstema — et lille badge-ikon ved siden af navnet. ~3,7 sek. i alt.
 function showLaunchSplash(){
   let ov=document.getElementById('launchSplash'); if(ov)ov.remove();
   ov=document.createElement('div'); ov.id='launchSplash';
-  ov.style.cssText='position:fixed;inset:0;background:var(--board);z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;overflow:hidden';
+  ov.style.cssText='position:fixed;inset:0;background:var(--board);z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;overflow:hidden;padding:0 32px';
   const t=activeTheme();
-  const sub = t ? `${t.icon} ${t.label}` : 'Sæson 1';
+  const badge = t ? ` ${t.icon}` : '';
+  const pick = QUOTES[Math.floor(Math.random()*QUOTES.length)];
   ov.innerHTML=`<div style="position:relative;width:16px;height:16px;display:flex;align-items:center;justify-content:center">
       <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s ease-out infinite"></div>
       <div style="position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--seasonal-accent,var(--amber));animation:splashRing 1.6s .5s ease-out infinite"></div>
       <div style="width:16px;height:16px;border-radius:50%;background:var(--seasonal-accent,var(--amber));animation:splashGlow 1.2s ease-in-out infinite;box-shadow:0 0 38px 8px var(--seasonal-accent,rgba(243,169,59,.55))"></div>
     </div>
-    <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:22px;color:#EBEEEA;opacity:0;animation:revPop .55s .2s forwards;text-align:center">Rona Defence League</div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--seasonal-accent,#C98B2E);opacity:0;animation:splashSubtitle .5s .85s forwards">${sub}</div>`;
+    <div style="font-family:Oswald,sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:22px;color:#EBEEEA;opacity:0;animation:revPop .55s .2s forwards;text-align:center">Rona Defence League${badge}</div>
+    <div style="max-width:320px;text-align:center;opacity:0;animation:splashSubtitle .5s 1s forwards">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#EBEEEA;line-height:1.55;font-style:italic">"${escHtml(pick.q)}"</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--seasonal-accent,#C98B2E);margin-top:8px;letter-spacing:.04em">— ${escHtml(pick.a)}</div>
+    </div>`;
   document.body.appendChild(ov);
-  setTimeout(()=>{ ov.style.transition='opacity .5s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),520); }, 2050);
+  setTimeout(()=>{ ov.style.transition='opacity .5s ease'; ov.style.opacity='0'; setTimeout(()=>ov.remove(),520); }, 3200);
 }
 
 /* =================== SÆSON-/HØJTIDSTEMA =================== */
@@ -1479,6 +1569,7 @@ const SPORTS_EVENTS_RECURRING=[
   {key:"random-acts-of-kindness-day",label:"Random Acts of Kindness Day",icon:"💛",accent:"#8F9FC9",tier:"light",fromMd:"02-17",toMd:"02-17"},
   {key:"sj-ldne-sygdommes-dag",label:"Sjældne sygdommes dag",icon:"🎗️",accent:"#C98B6E",tier:"light",fromMd:"02-28",toMd:"02-28"},
   {key:"kvindernes-internationale-kampdag",label:"Kvindernes internationale kampdag",icon:"👩",accent:"#C9A86E",tier:"light",fromMd:"03-08",toMd:"03-08"},
+  {key:"b-f-og-blowjobdag",label:"Bøf og blowjobdag",icon:"🥩",accent:"#C97F9E",tier:"light",fromMd:"03-14",toMd:"03-14"},
   {key:"pi-dag",label:"Pi-dag",icon:"🥧",accent:"#8F9FC9",tier:"light",fromMd:"03-14",toMd:"03-14"},
   {key:"saint-patrick-s-day",label:"Saint Patrick's Day",icon:"☘️",accent:"#7FA8C9",tier:"light",fromMd:"03-17",toMd:"03-17"},
   {key:"international-lykkedag",label:"International lykkedag",icon:"🍀",accent:"#6EC9C0",tier:"light",fromMd:"03-20",toMd:"03-20"},
@@ -1487,6 +1578,7 @@ const SPORTS_EVENTS_RECURRING=[
   {key:"verdens-autismedag",label:"Verdens autismedag",icon:"🧩",accent:"#C97F9E",tier:"light",fromMd:"04-02",toMd:"04-02"},
   {key:"verdens-sundhedsdag",label:"Verdens sundhedsdag",icon:"🏥",accent:"#C97F9E",tier:"light",fromMd:"04-07",toMd:"04-07"},
   {key:"danmarks-bes-ttelse-1940",label:"Danmarks besættelse 1940",icon:"🎗️",accent:"#F3A93B",tier:"rich",fromMd:"04-09",toMd:"04-09"},
+  {key:"kage-og-cunnilingus-dag",label:"Kage og cunnilingus-dag",icon:"🍰",accent:"#6EC9C0",tier:"light",fromMd:"04-14",toMd:"04-14"},
   {key:"earth-day-jordens-dag",label:"Earth Day / Jordens dag",icon:"🌍",accent:"#C98B6E",tier:"light",fromMd:"04-22",toMd:"04-22"},
   {key:"verdens-bogdag",label:"Verdens bogdag",icon:"📚",accent:"#C97F9E",tier:"light",fromMd:"04-23",toMd:"04-23"},
   {key:"international-dansedag",label:"International dansedag",icon:"💃",accent:"#7FA8C9",tier:"light",fromMd:"04-29",toMd:"04-29"},
