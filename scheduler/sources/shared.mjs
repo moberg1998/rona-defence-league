@@ -49,11 +49,11 @@ export async function fixturesForDate(apiGet, base, resource, date, label) {
   }
 }
 
-// Henter kampe for de næste `days` dage (i dag + days-1 frem), så en hel weekend er synlig
-// nogle dage i forvejen — ikke kun "i dag/i morgen". Runderne spilles i weekenden, så folk skal
-// kunne se BÅDE lørdags- og søndagskampe et par dage før. Hver dato fejler uafhængigt af de andre
-// (se fixturesForDate) — rammer gratis-planens datovindue et loft et sted i midten af ugen, falder
-// den bare tilbage til færre dage i stedet for at vælte hele kørslen.
+// Henter kampe for de næste `days` dage (i dag + days-1 frem). API-Sports' gratis plan giver KUN
+// adgang til i går/i dag/i morgen (bekræftet ved en rigtig fejlbesked, se football.mjs) — "i går" er
+// ubrugeligt for os, så det reelle fremadrettede loft er 2 dage (`days` bør derfor altid være 2 for
+// API-Sports-kilderne). Hver dato fejler uafhængigt af de andre (se fixturesForDate), så beder man
+// alligevel om for mange dage, falder den bare tilbage til færre i stedet for at vælte hele kørslen.
 export async function fixturesForNextDays(apiGet, base, resource, days, label) {
   const dates = Array.from({ length: days }, (_, i) => DateTime.now().setZone(TZ).plus({ days: i }).toFormat('yyyy-MM-dd'));
   const results = await Promise.all(dates.map(d => fixturesForDate(apiGet, base, resource, d, label)));

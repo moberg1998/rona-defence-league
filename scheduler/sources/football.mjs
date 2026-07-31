@@ -53,12 +53,16 @@ const LEAGUES = [
   { id: 345, name: 'Czech Liga' },          // Tjekkiet
 ];
 // Runderne spilles KUN lørdag fra kl. 12 til søndag aften — filtreret bagefter med isWeekendSlot.
-// BEKRÆFTET ved en rigtig kørsel (API-Sports' egen fejlbesked): gratis-planens "date"-opslag virker
-// KUN for i dag + de næste 2 dage ("try from 2026-07-06 to 2026-07-08") — IKKE længere ude, uanset
-// hvor mange dage vi beder om. Der er altså intet at vinde ved at bede om flere end 3 — det skaber
-// bare en bunke afviste kald og larm i loggen. Konkret betyder det: en lørdag/søndag-runde bliver
-// først synlig fra torsdag (2 dage før), medmindre I opgraderer til en betalt API-Sports-plan.
-const FETCH_DAYS = 3;
+// RETTET forståelse af gratis-planens "date"-vindue (bekræftet ved en rigtig kørsel 31/7-2026,
+// API-Sports' egen fejlbesked ved date=2026-08-02: "try from 2026-07-30 to 2026-08-01" — dvs.
+// GÅR/I DAG/I MORGEN, ikke "i dag + de næste 2 dage" som tidligere antaget). "I går" er ubrugeligt
+// for os (kampe i fortiden), så det reelle fremadrettede vindue er kun I DAG + I MORGEN (2 dage) —
+// at bede om en 3. dag frem er GARANTERET afvist hver eneste gang, og skaber bare larm i loggen.
+// Konkret betyder det: en lørdag/søndag-runde bliver først synlig, når robotten kører LØRDAG morgen
+// (hvor "i morgen" = søndag) — dvs. samme dag som runden, men stadig i god tid inden kl. 10-deadline,
+// da robotten kører kl. 02:00 dansk tid. Ikke fredag eller tidligere, medmindre I opgraderer til en
+// betalt API-Sports-plan.
+const FETCH_DAYS = 2;
 // API-Sports' gratis plan har et dagligt loft pr. sport (~100 opslag/dag). Fixtures-opslag er
 // billige (3/dag uanset antal fulgte ligaer — det er ÉT globalt opslag pr. dato, filtreret her i
 // koden). Det eneste, der vokser med flere ligaer, er odds-opslag (ét pr. relevant kamp), derfor et
