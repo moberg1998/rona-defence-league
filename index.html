@@ -2135,6 +2135,13 @@ function powerBody(){
 }
 function myCollectible(){ S.collectibles.players[S.user]||={counts:{},lastClaimed:null}; return S.collectibles.players[S.user]; }
 function hasClaimedToday(){ return myCollectible().lastClaimed===new Date().toISOString().slice(0,10); }
+// Popper automatisk op lige efter launch-splashen, i stedet for at kræve et tryk ind på
+// Samlerobjekter-siden — men kun hvis der rent faktisk er en uåbnet gave i dag.
+function maybeAutoClaimGift(){
+  if(!S||!S.user)return;
+  if(!collectiblesStarted()||hasClaimedToday())return;
+  claimDailyGift();
+}
 async function claimDailyGift(){
   if(!collectiblesStarted()){ toast("Samlerobjekter starter først lørdag d. 1. august."); return; }
   if(hasClaimedToday())return;
@@ -2179,7 +2186,9 @@ function showGiftOverlay(item,onKeep){
     canvas.style.opacity='0'; canvas.style.transform='scale(1.15)';
     setTimeout(()=>canvas.remove(), 400);
     const iconEl=document.getElementById('giftIcon'); iconEl.style.animation='giftReveal .55s cubic-bezier(.34,1.56,.64,1) forwards';
-    document.getElementById('giftNameReveal').textContent=item.name;
+    // Bevidst IKKE item.name her — navnet skal forblive en hemmelighed, samme mysterie-princip
+    // som trofæskabets ❓/silhuet/fuld-afsløring. Ikonet er selve overraskelsen; navnet først ved 15 stk.
+    document.getElementById('giftNameReveal').textContent='Tilføjet til dit trofæskab!';
     document.getElementById('scratchHint').style.display='none';
     document.getElementById('scratchSkip').style.display='none';
     document.getElementById('giftKeepBtn').style.display='inline-block';
@@ -2785,6 +2794,7 @@ auth.onAuthStateChanged(async user=>{
   resetF(); updateWho(); renderAll(); go(currentScreen||'home');
   refreshPushTokenIfGranted();
   setTimeout(maybeShowBirthdayBanner, 900);
+  setTimeout(maybeAutoClaimGift, 6400);   // efter splashen (~6,3s), så de ikke overlapper visuelt
 });
 renderLoginMode();
 if(navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(e=>console.error(e));
