@@ -2146,20 +2146,23 @@ async function claimDailyGift(){
   if(!collectiblesStarted()){ toast("Samlerobjekter starter først lørdag d. 1. august."); return; }
   if(hasClaimedToday())return;
   const item=COLLECTIBLE_ITEMS[Math.floor(Math.random()*COLLECTIBLE_ITEMS.length)];
-  showGiftOverlay(item, async ()=>{
+  const willBeDone=(myCollectible().counts[item.id]||0)+1>=COLLECTIBLE_TARGET;
+  showGiftOverlay(item, willBeDone, async ()=>{
     const me=myCollectible(); me.counts[item.id]=(me.counts[item.id]||0)+1; me.lastClaimed=new Date().toISOString().slice(0,10);
     S.collectibles.log.push({ts:Date.now(),player:S.user,item:item.id});
     await saveState(); moreView='collect'; renderMore();
   });
 }
-function showGiftOverlay(item,onKeep){
+// revealFull: kun sandt hvis DENNE gave gør det til nummer 15 af slagsen — ellers vises kun
+// en gråtonet silhuet, samme regel som trofæskabet (❓ → silhuet → fuld farve først ved 15 stk.).
+function showGiftOverlay(item,revealFull,onKeep){
   let ov=document.getElementById('giftOverlay'); if(ov)ov.remove();
   const SZ=180;
   ov=document.createElement('div'); ov.id='giftOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:28px;text-align:center';
   ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎟️ Skrab dagens gave</div>
     <div id="scratchWrap" style="position:relative;width:${SZ}px;height:${SZ}px;border-radius:20px;overflow:hidden;box-shadow:0 0 40px rgba(243,169,59,.25)">
-      <div id="giftIcon" style="position:absolute;inset:0;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px">${item.icon}</div>
+      <div id="giftIcon" style="position:absolute;inset:0;background:#EBEEEA;display:flex;align-items:center;justify-content:center;font-size:64px${revealFull?'':';filter:brightness(0);opacity:.38'}">${item.icon}</div>
       <canvas id="scratchCanvas" width="${SZ}" height="${SZ}" style="position:absolute;inset:0;touch-action:none;cursor:pointer;transition:opacity .4s ease,transform .4s ease"></canvas>
     </div>
     <div id="giftNameReveal" style="font-family:'Oswald';font-size:22px;font-weight:600;color:#EBEEEA;min-height:30px"></div>
@@ -2186,9 +2189,9 @@ function showGiftOverlay(item,onKeep){
     canvas.style.opacity='0'; canvas.style.transform='scale(1.15)';
     setTimeout(()=>canvas.remove(), 400);
     const iconEl=document.getElementById('giftIcon'); iconEl.style.animation='giftReveal .55s cubic-bezier(.34,1.56,.64,1) forwards';
-    // Bevidst IKKE item.name her — navnet skal forblive en hemmelighed, samme mysterie-princip
-    // som trofæskabets ❓/silhuet/fuld-afsløring. Ikonet er selve overraskelsen; navnet først ved 15 stk.
-    document.getElementById('giftNameReveal').textContent='Tilføjet til dit trofæskab!';
+    // Navnet vises KUN, hvis dette er den 15. og fuldender genstanden — ellers forbliver det en
+    // hemmelighed, samme mysterie-princip som trofæskabets ❓/silhuet/fuld-afsløring.
+    document.getElementById('giftNameReveal').textContent = revealFull ? `${item.name} · fuldendt! 🎉` : 'Tilføjet til dit trofæskab!';
     document.getElementById('scratchHint').style.display='none';
     document.getElementById('scratchSkip').style.display='none';
     document.getElementById('giftKeepBtn').style.display='inline-block';
