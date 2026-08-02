@@ -1674,9 +1674,14 @@ function showRevealOverlay(r, monthNote){
   const won=legs.length&&legs.every(n=>r.picks[n].hit);
   let ov=document.getElementById('revealOverlay'); if(ov)ov.remove();
   ov=document.createElement('div'); ov.id='revealOverlay';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.97);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;padding:44px 28px 64px;overflow-y:auto';
-  ov.innerHTML='<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">Runde '+roundNo(r)+' afgøres…</div><div id="revLegs" style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px"></div><div id="revResult" style="min-height:80px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center"></div>';
+  // VIGTIGT: baggrundsfarven sidder KUN på dette yderste, uanimerede lag. Ryst-/glød-animationen
+  // ved afgørelse sættes på #revInner i stedet for — nogle mobil-browsere (Android/Samsung Internet
+  // i PWA-tilstand) fejlrenderer en semi-transparent baggrund til usynlig, hvis samme element også
+  // har en aktiv CSS-animation. Ved at holde de to adskilt undgår vi den fejl helt.
+  ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.97);z-index:70;overflow-y:auto';
+  ov.innerHTML='<div id="revInner" style="min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:14px;padding:44px 28px 64px"><div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">Runde '+roundNo(r)+' afgøres…</div><div id="revLegs" style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px"></div><div id="revResult" style="min-height:80px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center"></div></div>';
   document.body.appendChild(ov);
+  const inner=ov.querySelector('#revInner');
   const box=ov.querySelector('#revLegs');
   subs.forEach(n=>{ const p=r.picks[n]; const row=document.createElement('div');
     row.style.cssText='display:flex;justify-content:space-between;align-items:center;background:#EBEEEA;border-radius:11px;padding:11px 13px;opacity:0';
@@ -1697,8 +1702,8 @@ function showRevealOverlay(r, monthNote){
     const net=couponNet(r);
     ov.querySelector('#revResult').innerHTML='<div id="revBig" style="font-family:Oswald,sans-serif;font-size:38px;font-weight:700;color:'+(won?'#2FA56C':'#DD5147')+';opacity:0">'+(won?'VANDT! 🎉':'TABT')+'</div>'+(r.stake?'<div style="font-family:JetBrains Mono,monospace;color:#EBEEEA;margin-top:4px">'+(net>=0?'+':'')+net.toFixed(0)+' kr</div>':'')+(monthNote?'<div style="font-size:12px;color:#C98B2E;margin-top:14px;max-width:300px;line-height:1.5">📅 '+monthNote+'</div>':'')+'<button class="btn btn-ghost" style="margin-top:18px" onclick="shareCoupon(\''+r.id+'\')">📤 Del kupon som billede</button>'+'<button class="btn btn-dark" style="margin-top:8px" onclick="document.getElementById(\'revealOverlay\').remove();go(\'home\')">Videre</button>';
     const big=ov.querySelector('#revBig'); big.style.animation='resultPop .55s cubic-bezier(.34,1.56,.64,1) forwards';
-    if(won){ confettiBurst(ov,{count:110}); setTimeout(()=>confettiBurst(ov,{count:50}),260); ov.style.animation='glowPulseWin 1.8s ease-in-out infinite .5s'; }
-    else{ ov.style.animation='shakeX .5s ease-in-out'; }
+    if(won){ confettiBurst(ov,{count:110}); setTimeout(()=>confettiBurst(ov,{count:50}),260); inner.style.animation='glowPulseWin 1.8s ease-in-out infinite .5s'; }
+    else{ inner.style.animation='shakeX .5s ease-in-out'; }
   };
   setTimeout(reveal,450);
 }
