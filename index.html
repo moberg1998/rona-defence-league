@@ -2004,15 +2004,17 @@ function showSpinOverlay(result,onKeep){
   ov.style.cssText='position:fixed;inset:0;background:rgba(12,27,24,.95);z-index:60;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:28px;text-align:center';
   const icons=POWER_ORDER.map(t=>POWERS[t].icon);
   ov.innerHTML=`<div style="font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:#F3A93B;font-size:13px">🎰 Enarmet tyveknægt</div>
-    <div id="machine" style="display:flex;gap:10px;background:#0C1B18;border:3px solid #C98B2E;border-radius:16px;padding:16px 14px;box-shadow:0 0 40px rgba(243,169,59,.25)">
-      ${[0,1,2].map(i=>`<div id="reelBox${i}" style="width:74px;height:90px;overflow:hidden;background:#EBEEEA;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:50px"><span id="reel${i}" style="display:inline-block;transition:transform .12s">${icons[i%icons.length]}</span></div>`).join('')}
+    <div id="machine" style="background:#0C1B18;border:3px solid #C98B2E;border-radius:16px;padding:16px 14px;box-shadow:0 0 40px rgba(243,169,59,.25)">
+      <div id="machineInner" style="display:flex;gap:10px">
+      ${[0,1,2].map(i=>`<div id="reelBox${i}" style="position:relative;width:74px;height:90px;overflow:hidden;background:#EBEEEA;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:50px"><span id="reel${i}" style="display:inline-block;transition:transform .12s">${icons[i%icons.length]}</span><div id="reelGlow${i}" style="position:absolute;inset:0;border-radius:10px;pointer-events:none"></div></div>`).join('')}
+      </div>
     </div>
     <div id="spinName" style="font-family:Oswald,sans-serif;font-size:20px;color:#EBEEEA;min-height:30px;max-width:320px"></div>
     <div id="spinStatus" style="font-size:12px;color:#9fb0aa;min-height:16px">Snurrer…</div>
     <div id="spinBtn" style="min-height:46px"></div>`;
   document.body.appendChild(ov);
   const reelEls=[0,1,2].map(i=>ov.querySelector('#reel'+i));
-  const reelBoxEls=[0,1,2].map(i=>ov.querySelector('#reelBox'+i));
+  const reelGlowEls=[0,1,2].map(i=>ov.querySelector('#reelGlow'+i));
   const statusEl=ov.querySelector('#spinStatus');
   const resIcon=POWERS[result].icon;
   const rand=()=>icons[Math.floor(Math.random()*icons.length)];
@@ -2022,9 +2024,9 @@ function showSpinOverlay(result,onKeep){
     reelEls.forEach(el=>el.style.animation='reelSpinBlur .11s ease-in-out infinite');
     const cyc=setInterval(()=>reelEls.forEach(el=>el.textContent=rand()), 65);
     setTimeout(()=>{ clearInterval(cyc); let k=0;
-      const stopOne=()=>{ if(k<3){ const el=reelEls[k]; const box=reelBoxEls[k];
+      const stopOne=()=>{ if(k<3){ const el=reelEls[k]; const glow=reelGlowEls[k];
           el.style.animation='none'; el.textContent=targets[k]; el.style.animation='reelStop .32s cubic-bezier(.34,1.56,.64,1)';
-          box.style.animation='reelGlow .4s ease-out';
+          glow.style.animation='reelGlow .4s ease-out';
           k++; setTimeout(stopOne,260); } else onDone(); };
       stopOne();
     }, 560);
@@ -2038,7 +2040,7 @@ function showSpinOverlay(result,onKeep){
       spinReels([resIcon,resIcon,resIcon],()=>{
         statusEl.textContent='GEVINST! 🎉';
         ov.querySelector('#spinName').textContent=POWERS[result].name+' — '+POWERS[result].desc;
-        ov.querySelector('#machine').style.animation='machineShake .4s ease-in-out, glowPulseWin 1.6s ease-in-out infinite .4s';
+        ov.querySelector('#machineInner').style.animation='machineShake .4s ease-in-out, glowPulseWin 1.6s ease-in-out infinite .4s';
         ov.querySelector('#spinBtn').innerHTML='<button class="btn btn-dark" id="keepBtn">Behold i arsenal</button>';
         ov.querySelector('#keepBtn').onclick=()=>{ ov.remove(); onKeep(); };
         if(typeof confettiBurst==='function')confettiBurst(ov,{count:90});
