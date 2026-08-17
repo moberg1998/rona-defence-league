@@ -346,7 +346,9 @@ let PLAYERS=[...DEFAULT_PLAYERS];
 // kuponen. Det gemmes i r.picks under denne nøgle — IKKE i PLAYERS — så det tæller med i kuponens
 // økonomi (couponNet/couponOdds/slipHTML m.fl. via legNames()), men ALDRIG i de personlige point
 // (roundRaw/monthPoints/leaguePoints looper kun rå PLAYERS, aldrig legNames()).
-const JOKER_KEY='__joker__';
+// VIGTIGT: må IKKE både starte og slutte med "__" — Firestore reserverer den slags feltnavne
+// internt og afviser hele skrivningen med "invalid-argument", hvis picks har et sådant feltnavn.
+const JOKER_KEY='jokerben';
 function legNames(r){ return r.picks[JOKER_KEY] ? PLAYERS.concat([JOKER_KEY]) : PLAYERS; }
 function lastRoundWinner(){
   const rs=settledRounds().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
