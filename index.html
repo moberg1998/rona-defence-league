@@ -632,12 +632,15 @@ function monthFrikendt(monthKey){
 }
 function rankAmong(elig,s,key){const slots=PLAYERS.map((_,i)=>PLAYERS.length-1-i);const sorted=[...elig].sort((a,b)=>s[b][key]-s[a][key]);const o={};let i=0;
   while(i<sorted.length){let j=i;while(j<sorted.length&&s[sorted[j]][key]===s[sorted[i]][key])j++;const sh=slots.slice(i,j).reduce((x,y)=>x+(y||0),0)/(j-i);for(let k=i;k<j;k++)o[sorted[k]]=sh;i=j;}return o;}
-function roundRaw(r){   // ren placering pr. runde: 0/1/2/3 — taber & ikke-spillet = 0, ellers rangeret efter odds. Lægges altid oven i, trækkes aldrig fra.
+function roundRaw(r){   // ren placering pr. runde: 0..PLAYERS.length-1 — taber & ikke-spillet = 0, ellers
+  // rangeret efter odds. Skalaen følger ALTID klubbens faste spillerantal, uanset hvor mange der nåede
+  // at spille DENNE runde — en udeblivelse må ikke fortrænge point fra dem der rent faktisk spillede
+  // (kun et void-ben, der fjernes helt fra alle tal, gør skalaen mindre). Lægges altid oven i, trækkes aldrig fra.
   const out={}; PLAYERS.forEach(n=>out[n]=0);
   const players=PLAYERS.filter(n=>isCounting(r.picks[n])); if(!players.length)return out;
-  if(players.length===1){ const n=players[0]; out[n]=r.picks[n].hit?1:0; return out; }
+  const voided=PLAYERS.filter(n=>r.picks[n]&&r.picks[n].hit==='void').length;
   const key=n=>r.picks[n].hit?r.picks[n].odds:-1;   // vundet → sorter efter odds; tabt → i bund
-  const k=players.length; const sorted=[...players].sort((a,b)=>key(b)-key(a));
+  const k=PLAYERS.length-voided; const sorted=[...players].sort((a,b)=>key(b)-key(a));
   let i=0;
   while(i<sorted.length){ let j=i; while(j<sorted.length&&key(sorted[j])===key(sorted[i]))j++;
     const slots=[]; for(let q=i;q<j;q++)slots.push(k-1-q); const avg=slots.reduce((a,b)=>a+b,0)/slots.length;
@@ -1805,7 +1808,11 @@ function recomputeMonthFines(key){   // genberegn taber-bøder for en allerede l
   const had=S.fines.filter(f=>f.kind==='taber'&&(f.srcMonth===key||f.dueMonth===due));
   S.fines=S.fines.filter(f=>!(f.kind==='taber'&&(f.srcMonth===key||f.dueMonth===due)));
   const rs=settledRounds().filter(r=>r.date.slice(0,7)===key); const mls=monthLosers(rs); const frik=monthFrikendt(key);
-  mls.forEach(x=>{ if(frik.has(x.name))return; S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:due,srcMonth:key,ts:Date.now()}); });
+  // VIGTIGT: skal logge til S.disc.log ligesom applyMonthClose() gør — ellers forsvinder den nye
+  // taber-bøde fra Disciplin & kort-historikken, selvom den korrekt lægges i S.fines/Penge-fanen.
+  mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber (genberegnet) – frikendt via power-up (bøde slettet)'}); return; }
+    S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:due,srcMonth:key,ts:Date.now()});
+    S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber (genberegnet efter ekstra runde) · '+x.penalty+' kr'}); });
   const newTxt=mls.filter(x=>!frik.has(x.name)).map(x=>nameOf(x.name)+' (+'+x.penalty+' kr)').join(', ');
   return {removed:had.length, losers:newTxt};
 }
