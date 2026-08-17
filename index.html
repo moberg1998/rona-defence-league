@@ -740,11 +740,10 @@ function couponNet(r){
   return ret-r.stake;
 }
 function couponOdds(r){ const legs=legNames(r).filter(n=>isCounting(r.picks[n])); let c=1; legs.forEach(n=>c*=r.picks[n].odds); return legs.length?c:0; }
-function finesTotal(){ return S.fines.reduce((a,f)=>a+f.amount,0); }
-function poolTotal(){
-  const byMonth={}; settledRounds().forEach(r=>{(byMonth[r.date.slice(0,7)]||=[]).push(r);});
+function poolTotal(){   // den FAKTISKE kontosaldo — kun rigtige indbetalinger/betalte bøder, ikke forventede
+  let paidIn=0; const c=contributions(); PLAYERS.forEach(n=>paidIn+=c[n].paid);
   let net=0; settledRounds().forEach(r=>net+=couponNet(r));
-  return Object.keys(byMonth).length*fee()*PLAYERS.length + finesTotal() + net + (S.balanceAdj||0);
+  return paidIn + net + (S.balanceAdj||0);
 }
 function contributions(){
   const c={}; PLAYERS.forEach(n=>c[n]={paid:0,owed:0});
