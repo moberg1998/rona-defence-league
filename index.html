@@ -519,7 +519,8 @@ async function saveRoundMerge(roundId, patch){
 }
 // Fuld overskrivning af én runde — kun til admin-handlinger (lås/afgør/rediger), hvor kun admin skriver ad gangen.
 async function saveRound(r){
-  try{ await roundsCol.doc(String(r.id)).set(r); return true; }catch(e){ console.error(e); return false; }
+  try{ await roundsCol.doc(String(r.id)).set(r); return {ok:true}; }
+  catch(e){ console.error(e); return {ok:false, err:(e&&(e.code||e.message))||'ukendt fejl'}; }
 }
 // Rydder hele runde-samlingen i Firestore — bruges udelukkende af »Start ny sæson«, og kun efter sæsonen er arkiveret.
 async function clearRoundsCollection(){
@@ -1273,8 +1274,8 @@ async function lockRound(){
     }
   });
   const prevStatus=r.status; r.status='locked';
-  const roundSaved=await saveRound(r);
-  if(!roundSaved){ r.status=prevStatus; toast("⚠️ Kunne ikke låse runden — tjek din forbindelse og prøv igen."); renderAll(); return; }
+  const saveRes=await saveRound(r);
+  if(!saveRes.ok){ r.status=prevStatus; toast("⚠️ Kunne ikke låse runden ("+saveRes.err+") — tjek din forbindelse og prøv igen."); renderAll(); return; }
   const stateSaved=await saveState();
   renderAll();
   if(!stateSaved) toast("⚠️ Runden er låst, men kort/bøder for fravær kunne ikke gemmes — genindlæs appen og tjek.");
@@ -1310,8 +1311,8 @@ async function settleRound(){
   // Firestore-skrivningen fejlede (fx dårlig forbindelse), viste appen alligevel afgørelsen som
   // gennemført, uden at noget rent faktisk var gemt. Nu tjekker vi returværdien og ruller status
   // tilbage + advarer, i stedet for at lade appen lyve om at runden er afgjort.
-  const roundSaved=await saveRound(r);
-  if(!roundSaved){ r.status=prevStatus; toast("⚠️ Kunne ikke gemme afgørelsen — tjek din forbindelse og prøv igen."); renderAll(); return; }
+  const saveRes=await saveRound(r);
+  if(!saveRes.ok){ r.status=prevStatus; toast("⚠️ Kunne ikke gemme afgørelsen ("+saveRes.err+") — tjek din forbindelse og prøv igen."); renderAll(); return; }
   const mk=r.date.slice(0,7); const wasClosed=!!(S.payments[mk]||{}).closed;
   const notes=autoCloseDue();   // luk månederne der er færdige (auto)
   let monthNote=notes.length?notes[notes.length-1]:null;
