@@ -666,8 +666,11 @@ function monthLosers(rs){   // bruger den manipulerede stilling; bøden afgøres
   // uanset hvordan de andre klarede sig — samme takst som en "sidst + minus TB"-taber (50 kr).
   if(noShow.length && played.length) return noShow.map(n=>({name:n, penalty:50}));
   if(elig.length<2)return [];
-  const worst=[...elig].sort((a,b)=> pts[a]-pts[b] || s[a].tb-s[b].tb || s[a].hr-s[b].hr || s[a].net-s[b].net)[0];
-  const group=elig.filter(n=> pts[n]===pts[worst] && s[n].tb===s[worst].tb && s[n].hr===s[worst].hr && s[n].net===s[worst].net);
+  // "Sidsteplads" afgøres KUN på point, jf. reglen "står to helt lige i bund, betaler de begge" —
+  // ingen skjulte ekstra tie-break-tal (fx antal spillede runder) må kunne adskille to spillere,
+  // der reelt har lige mange point for måneden. Bekræftet med Moberg 2026-08-17.
+  const worstPts=Math.min(...elig.map(n=>pts[n]));
+  const group=elig.filter(n=>pts[n]===worstPts);
   return group.map(n=>({name:n, penalty: s[n].tb<100?50:25}));
 }
 function currentMonthLosers(){
