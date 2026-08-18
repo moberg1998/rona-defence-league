@@ -355,7 +355,7 @@ function lastRoundWinner(){
   return PLAYERS.filter(n=>rp[n]===max);
 }
 const MONTHLY_FEE=100;
-const STAKE_DEFAULT=125;   // flatbetting: 125 kr pr. kupon som udgangspunkt (kan ændres ved aftale)
+const STAKE_DEFAULT=100;   // flatbetting: 100 kr pr. kupon som udgangspunkt (kan ændres ved aftale)
 const PAY_TO="Magnus";           // betalinger overføres til admin på MobilePay (ingen box-gebyr)
 const PAY_MOBILEPAY="42174259";
 const ADMIN="Moberg";
@@ -533,7 +533,7 @@ function obligation(player, met, reason){
   const p=S.disc.players[player];
   if(met){
     p.streak++;
-    if(p.yellow && p.streak>=3){ p.yellow=false; p.streak=0; S.disc.log.push({ts:Date.now(),player,event:"renset",reason:"3 rene forpligtelser"}); }
+    if(p.yellow && p.streak>=4){ p.yellow=false; p.streak=0; S.disc.log.push({ts:Date.now(),player,event:"renset",reason:"4 rene forpligtelser"}); }
   } else {
     if(p.yellow){ p.yellow=false; p.streak=0; p.reds++; S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player,kind:"rødt",amount:25,paid:false,dueMonth:upcomingPayMonth(),ts:Date.now()}); S.disc.log.push({ts:Date.now(),player,event:"rødt",reason}); }
     else { p.yellow=true; p.streak=0; S.disc.log.push({ts:Date.now(),player,event:"gult",reason}); }
@@ -825,14 +825,13 @@ function unpaidFinesFor(n,monthKey){ return S.fines.filter(f=>f.player===n && !f
 function roundNo(r){ if(!r)return 0; return S.rounds.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id).findIndex(x=>x.id===r.id)+1; }
 function combOdds(r){let c=1;PLAYERS.forEach(n=>{if(r.picks[n])c*=r.picks[n].odds;});return c;}
 function nthSat(y,m0,n){ const d=new Date(Date.UTC(y,m0,1)); let c=0; while(true){ if(d.getUTCDay()===6){c++; if(c===n)return d.toISOString().slice(0,10);} d.setUTCDate(d.getUTCDate()+1);} }
-function nextScheduled(refISO,inclusive){
-  const base=new Date(refISO+"T00:00:00Z"); let y=base.getUTCFullYear(),m=base.getUTCMonth();
-  for(let i=0;i<6;i++){ for(const s of [nthSat(y,m,1),nthSat(y,m,3)]){ if(inclusive? s>=refISO : s>refISO) return s; } m++; if(m>11){m=0;y++;} }
-  return null;
+function nextScheduled(refISO,inclusive){   // vi spiller hver lørdag — finder næste lørdag fra refISO
+  const d=new Date(refISO+"T00:00:00Z"); const day=d.getUTCDay();
+  let diff=(6-day+7)%7; if(diff===0 && !inclusive) diff=7;
+  d.setUTCDate(d.getUTCDate()+diff);
+  return d.toISOString().slice(0,10);
 }
-function satWhich(iso){ const d=new Date(iso+"T00:00:00Z"),y=d.getUTCFullYear(),m=d.getUTCMonth();
-  if(iso===nthSat(y,m,1))return "1. lørdag"; if(iso===nthSat(y,m,3))return "3. lørdag"; return ""; }
-function deadlineText(iso){ const w=satWhich(iso); const[Y,M,D]=iso.split('-'); return `${w?w+' · ':''}lør ${+D}/${+M} kl. 10`; }
+function deadlineText(iso){ const[Y,M,D]=iso.split('-'); return `lør ${+D}/${+M} kl. 10`; }
 function seasonStartDate(){ const today=new Date().toISOString().slice(0,10); const y=+today.slice(0,4); const aug=nthSat(y,7,1); return today<=aug?aug:nthSat(y+1,7,1); }   // udgangspunkt: 1. lørdag i august
 async function ensureOpenRound(){
   if(S.season&&S.season.ended)return false;   // afsluttet sæson åbner ikke nye runder
@@ -956,7 +955,7 @@ function renderHome(){
   let roundCard;
   if(r){ const subs=PLAYERS.filter(n=>r.picks[n]).length;
     roundCard=`<div class="paper pad"><div style="display:flex;justify-content:space-between;align-items:center">
-      <div><div style="font-family:'Oswald';font-weight:600;font-size:18px">Runde ${roundNo(r)} · ${satWhich(r.date)||fmtDate(r.date)}</div>
+      <div><div style="font-family:'Oswald';font-weight:600;font-size:18px">Runde ${roundNo(r)} · ${fmtDate(r.date)}</div>
       <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--ink-soft);margin-top:3px">${r.status==='open'?'Deadline '+deadlineText(r.date)+' · '+subs+'/'+PLAYERS.length+' indsendt':'Låst — afventer resultater'}</div></div>
       <button class="btn btn-amber" onclick="go('round')">Åbn</button></div></div>`;
   } else {
@@ -995,7 +994,7 @@ function renderRound(){
   const el=document.getElementById('scr-round'); const r=openRound();
   if(!r){
     el.innerHTML=`<section><div class="eyebrow">Runde</div>
-      <div class="paper"><div class="empty"><div class="big">Ingen aktiv runde</div>Næste runde åbner automatisk efter sidste spil — på 1. og 3. lørdag.</div></div>
+      <div class="paper"><div class="empty"><div class="big">Ingen aktiv runde</div>Næste runde åbner automatisk efter sidste spil — hver lørdag.</div></div>
       ${isAdmin()?'<div class="btn-row" style="margin-top:12px"><button class="btn btn-dark" onclick="openNextRound()">Åbn næste runde nu</button></div>':''}</section>`;
     return;
   }
@@ -1795,7 +1794,7 @@ function renderMoney(){
       ${PLAYERS.map(n=>{const fines=unpaidFinesFor(n,key);const extra=fines.reduce((a,f)=>a+f.amount,0);const due=fee()+extra;const paid=S.payments[key]['fee_'+n];
         const finesTxt=fines.map(f=>f.amount+' kr '+(f.kind==='rødt'?'rødt kort':f.kind==='ferie'?'feriegebyr':f.kind==='buyin'?'buy-in':'taber')).join(' + ');
         return `<div class="pay-row"><div><span class="nm">${nameOf(n)}</span>${extra&&!paid?`<div style="font-size:12px;color:var(--ink-soft);margin-top:1px">+ ${finesTxt}</div>`:''}</div><button class="chk ${paid?'paid':''}" ${isAdmin()?'':'disabled'} onclick="togglePay('${key}','${n}')">${paid?'Betalt':'Mangler · '+due+' kr'}</button></div>`;}).join('')}
-      ${S.payments[key].closed?`<div class="status-line" style="padding:10px 16px">Måned lukket ✓${mlTxt?' · taber: '+mlTxt:''}</div>`
+      ${S.payments[key].closed?`<div class="status-line" style="padding:10px 16px">Måned lukket ✓${mlTxt?' · taber: '+mlTxt:''}</div>${isAdmin()?`<div class="pad" style="padding-top:0"><button class="btn btn-ghost-d" onclick="reopenMonth('${key}')">Genåbn måned (fjern taber-bøde)</button></div>`:''}`
         :isAdmin()?`<div class="pad"><p style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">${mlTxt?`Lukker du måneden nu: taber bliver <b>${mlTxt}</b>. `:''}Måneden lukkes ellers automatisk, når begge runder er afgjort — taberens bøde lægges oven i den kommende betaling.</p><button class="btn btn-dark" onclick="closeMonth('${key}')">Luk måned & afgør taber</button></div>`:''}</div>`;}).join('')}
     </section>`;
 }
@@ -1810,22 +1809,24 @@ function recomputeMonthFines(key){   // genberegn taber-bøder for en allerede l
   const rs=settledRounds().filter(r=>r.date.slice(0,7)===key); const mls=monthLosers(rs); const frik=monthFrikendt(key);
   // VIGTIGT: skal logge til S.disc.log ligesom applyMonthClose() gør — ellers forsvinder den nye
   // taber-bøde fra Disciplin & kort-historikken, selvom den korrekt lægges i S.fines/Penge-fanen.
-  mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber (genberegnet) – frikendt via power-up (bøde slettet)'}); return; }
+  mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber (genberegnet) – frikendt via power-up (bøde slettet)',srcMonth:key}); return; }
     S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:due,srcMonth:key,ts:Date.now()});
-    S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber (genberegnet efter ekstra runde) · '+x.penalty+' kr'}); });
+    S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber (genberegnet efter ekstra runde) · '+x.penalty+' kr',srcMonth:key}); });
   const newTxt=mls.filter(x=>!frik.has(x.name)).map(x=>nameOf(x.name)+' (+'+x.penalty+' kr)').join(', ');
   return {removed:had.length, losers:newTxt};
 }
 function autoCloseDue(){   // luk alle færdige måneder: begge runder afgjort, ELLER en senere måned er gået i gang
   const byMonth={}; settledRounds().forEach(r=>(byMonth[r.date.slice(0,7)]||=[]).push(r));
   const ms=Object.keys(byMonth).sort(); const latest=ms[ms.length-1]; const notes=[];
-  ms.forEach(mk=>{ if((S.payments[mk]||{}).closed)return; if(byMonth[mk].length>=2 || mk<latest) notes.push(applyMonthClose(mk)); });
+  // En måned er færdig, så snart en SENERE måned har fået sin første runde — antallet af runder pr.
+  // måned er ikke længere fast (ugentligt spil giver 4-5 runder pr. måned afhængigt af kalenderen).
+  ms.forEach(mk=>{ if((S.payments[mk]||{}).closed)return; if(mk<latest) notes.push(applyMonthClose(mk)); });
   return notes;
 }
 function applyMonthClose(key){   // ren bogføring: taber-bøde, frikendelse, betalings-kort. Returnerer notifikationstekst.
   S.payments[key]||={};
   const rs=settledRounds().filter(r=>r.date.slice(0,7)===key); const mls=monthLosers(rs); const frik=monthFrikendt(key);
-  mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber – frikendt via power-up (bøde slettet)'}); return; } S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:nextMonthKey(key),srcMonth:key,ts:Date.now()}); S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber · '+x.penalty+' kr'}); });
+  mls.forEach(x=>{ if(frik.has(x.name)){ S.disc.log.push({ts:Date.now(),player:x.name,event:'frikendt',reason:'månedens taber – frikendt via power-up (bøde slettet)',srcMonth:key}); return; } S.fines.push({id:'f'+Date.now()+Math.floor(Math.random()*1000),player:x.name,kind:'taber',amount:x.penalty,paid:false,dueMonth:nextMonthKey(key),srcMonth:key,ts:Date.now()}); S.disc.log.push({ts:Date.now(),player:x.name,event:'taber',reason:'månedens taber · '+x.penalty+' kr',srcMonth:key}); });
   PLAYERS.filter(isActivePlayer).forEach(n=> obligation(n, !!S.payments[key]['fee_'+n], "betaling ikke modtaget"));
   S.payments[key].closed=true;
   const[yy,mm]=key.split('-'); const txt=mls.map(x=>nameOf(x.name)+(frik.has(x.name)?' (frikendt)':' (+'+x.penalty+' kr)')).join(', ');
@@ -1835,6 +1836,17 @@ async function closeMonth(key){ if(!isAdmin())return; const[yy,mm]=key.split('-'
   confirmModal("Luk "+MONTHS_DA[+mm-1]+" "+yy+"? Månedens taber afgøres og får sin bøde, og manglende betalinger giver kort.", async ()=>{
     const note=applyMonthClose(key); await saveState(); renderAll(); go('money'); toast("🔔 "+note);
   }, "Luk måneden");
+}
+// Fortryder en (for tidligt) lukket måned: fjerner kun taber-/frikendt-bøden og -historikken for
+// netop DEN måned (identificeret via srcMonth, sat af applyMonthClose/recomputeMonthFines) og
+// genåbner den for flere runder. Rører IKKE betalingskort — kun taber-afgørelsen fortrydes.
+async function reopenMonth(key){ if(!isAdmin())return; const[yy,mm]=key.split('-');
+  confirmModal("Genåbn "+MONTHS_DA[+mm-1]+" "+yy+"? Månedens taber-bøde fjernes, og måneden bliver åben for flere runder igen — brug det kun hvis den blev lukket for tidligt.", async ()=>{
+    S.fines=S.fines.filter(f=>!(f.kind==='taber'&&f.srcMonth===key));
+    S.disc.log=S.disc.log.filter(l=>!((l.event==='taber'||l.event==='frikendt')&&l.srcMonth===key));
+    S.payments[key]||={}; delete S.payments[key].closed;
+    await saveState(); renderAll(); go('money'); toast("Måneden er genåbnet.");
+  }, "Genåbn måneden");
 }
 
 /* =================== RENDER: MORE =================== */
@@ -1877,7 +1889,7 @@ function adminBody(){
   const cc=contributions(); const buyinNow=Math.max(0,...PLAYERS.map(n=>cc[n].paid+cc[n].owed));
   let roundCtrl;
   if(!r){
-    roundCtrl=`<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Næste runde åbner automatisk efter rytmen (1. og 3. lørdag) — så snart sidste runde er afgjort.</p><button class="btn btn-dark" onclick="openNextRound()">Åbn næste runde nu</button>`;
+    roundCtrl=`<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Næste runde åbner automatisk hver lørdag — så snart sidste runde er afgjort.</p><button class="btn btn-dark" onclick="openNextRound()">Åbn næste runde nu</button>`;
   } else if(r.status==='open'){
     const subs=PLAYERS.filter(n=>r.picks[n]).length;
     roundCtrl=`<p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Runde ${roundNo(r)} · ${fmtDate(r.date)} · ${subs}/${PLAYERS.length} indsendt</p><div class="btn-row"><button class="btn btn-dark" onclick="lockRound()" ${subs===0?'disabled':''}>Luk runde</button><button class="btn btn-ghost" onclick="go('round')">Se runde</button></div>`;
@@ -2316,7 +2328,7 @@ async function changePassword(){
 function discBody(){
   return `<div class="paper" style="margin-bottom:14px">
     ${PLAYERS.map(n=>{const d=S.disc.players[n];const ctrl=isAdmin()&&(d.yellow||d.reds>0)?`<div class="btn-row" style="margin-top:8px">${d.yellow?`<button class="chk" onclick="adminClearCard('${n}','yellow')">Fjern gult</button>`:''}${d.reds>0?`<button class="chk" onclick="adminClearCard('${n}','red')">Fjern rødt</button>`:''}</div>`:'';
-      return `<div class="sub-row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="nm">${nameOf(n)}</div><div class="desc">${d.yellow?'Gult kort · '+d.streak+'/3 rene':d.reds?d.reds+' røde kort i alt':'Ren'}</div></div>
+      return `<div class="sub-row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="nm">${nameOf(n)}</div><div class="desc">${d.yellow?'Gult kort · '+d.streak+'/4 rene':d.reds?d.reds+' røde kort i alt':'Ren'}</div></div>
       <span style="font-size:20px">${cardIcon(d)}</span></div>${ctrl}</div>`;}).join('')}</div>
     <div class="eyebrow">Historik</div><div class="paper">${S.disc.log.length?S.disc.log.slice().reverse().map(e=>`<div class="sub-row"><div><div class="nm" style="font-size:14px">${nameOf(e.player)} · ${e.event}</div><div class="desc">${e.reason}</div></div><span class="badge b-wait" style="${e.event==='rødt'?'color:var(--red)':e.event==='gult'?'color:var(--amber-soft)':''}">${e.event}</span></div>`).join(''):'<div class="empty">Ingen kort givet endnu.</div>'}</div></section>`;
 }
@@ -2715,14 +2727,14 @@ if(messaging) messaging.onMessage(payload=>{
 });
 function rulesBody(){
   return `<div class="rule"><h3><span class="n">01</span>Indskud</h3><p>${fee()} kr om måneden pr. mand — overføres på MobilePay til Magnus (42174259), som holder klubbens fælles pulje. Puljen er bankrollen og bruges sammen én gang om året. (Almindelig overførsel, ikke en MobilePay-box — så undgår vi box-gebyret.) Taksten kan justeres af admin, hvis I bliver enige om det.</p></div>
-    <div class="rule"><h3><span class="n">02</span>Runder</h3><p>Vi spiller 1. og 3. lørdag i måneden, og alle indsender ét spil. Næste runde åbner automatisk, så snart den forrige er afgjort — så du kan melde ind, når du er klar. Deadline er kl. 10 om lørdagen. Dit spil skal afvikles i weekenden: kampen må tidligst starte lørdag kl. 12 og skal være slut senest søndag kl. 23.59 — medmindre andet aftales (de andre skal sige god for det).</p></div>
+    <div class="rule"><h3><span class="n">02</span>Runder</h3><p>Vi spiller hver lørdag, og alle indsender ét spil. Næste runde åbner automatisk, så snart den forrige er afgjort — så du kan melde ind, når du er klar. Deadline er kl. 10 om lørdagen. Dit spil skal afvikles i weekenden: kampen må tidligst starte lørdag kl. 12 og skal være slut senest søndag kl. 23.59 — medmindre andet aftales (de andre skal sige god for det).</p></div>
     <div class="rule"><h3><span class="n">03</span>Kuponen</h3><p>Alle spil samles til én akkumuleret kupon, som admin spiller. Vi flatbetter <b>${STAKE_DEFAULT} kr pr. kupon</b> hele sæsonen — fast og enkelt, så puljen holder til festen — medmindre andet aftales (fx en ekstra satsning efter en vild stime). Gevinster går tilbage i puljen.</p></div>
     <div class="rule"><h3><span class="n">04</span>Point & stilling</h3><p>Point gives som <b>ren placering pr. runde</b>: med tre spillere er det <b>2 / 1 / 0</b> for bedste til dårligste resultat den runde. Vinder du, rangeres du efter dine odds (mest værdi = flest point); taber du eller springer over, får du 0 den runde. Pointene lægges <b>altid oven i</b> — de kan kun gå op, aldrig ned, uanset hvor mange der spiller. De løber i sæsontabellen og afgør stillingen. Står to helt lige, deler de en placering.</p></div>
     <div class="rule"><h3><span class="n">05</span>Månedens taber</h3><p>Den med færrest point i måneden betaler 25 kr i puljen — eller 50 kr, hvis månedens TB% er under 100 %. Har du slet ikke spillet en måned, er det altid dårligst uanset de andres resultater, så du betaler den høje takst på 50 kr. Står to helt lige i bund, betaler de begge.</p></div>
-    <div class="rule"><h3><span class="n">06</span>Gult & rødt kort</h3><p>Glemmer du at sende spil eller betale: 1. gang gult, 2. gang rødt + 25 kr. Et gult forsvinder efter 3 rene forpligtelser. Kort handler om forglemmelser, ikke om at være dårligst — så du kan i samme måned både få et kort og være månedens taber. Begge bøder ryger i kassen.</p></div>
+    <div class="rule"><h3><span class="n">06</span>Gult & rødt kort</h3><p>Glemmer du at sende spil eller betale: 1. gang gult, 2. gang rødt + 25 kr. Et gult forsvinder efter 4 rene forpligtelser. Kort handler om forglemmelser, ikke om at være dårligst — så du kan i samme måned både få et kort og være månedens taber. Begge bøder ryger i kassen.</p></div>
     <div class="rule"><h3><span class="n">07</span>Afbud & void</h3><p>Melder du afbud, springes du over uden kort første gang. Men afbud i to runder i træk giver et gult kort — præcis som at glemme en kupon eller en betaling (og rødt kort + 25 kr, hvis du allerede har gult). Bliver en kamp aflyst (void), fjernes benet helt fra alle tal.</p></div>
     <div class="rule"><h3><span class="n">08</span>Power League</h3><p>Du optjener EXP ved at spille — og ekstra når du rammer — og spinner den enarmede tyveknægt for power-ups. De påvirker <b>kun månedens stilling</b>, altså hvem der ender sidst og betaler taber-bøden den måned. De rører <b>aldrig sæsontabellen eller statistikken</b>. En sabotage eller et tyveri kan sende en i bund for måneden — men tyveri virker kun, hvis offeret rent faktisk fik point (ellers er det spildt).</p></div>
-    <div class="rule"><h3><span class="n">09</span>Sæson</h3><p>Udgangspunktet er, at sæsonen starter på <b>1. lørdag i august</b> og kører frem til sommeren med runder hver 1. og 3. lørdag. Men I bestemmer selv: admin kan vælge at gå i gang tidligere, og så lægger første runde sig på den næste planlagte lørdag. Til sidst lukker admin sæsonen, årets priser kåres, festkasserne bruges på årsauktionen, og sæsonen bliver stående, til admin starter en ny.</p></div></section>`;
+    <div class="rule"><h3><span class="n">09</span>Sæson</h3><p>Udgangspunktet er, at sæsonen starter på <b>1. lørdag i august</b> og kører frem til sommeren med runder hver lørdag. Men I bestemmer selv: admin kan vælge at gå i gang tidligere, og så lægger første runde sig på den næste planlagte lørdag. Til sidst lukker admin sæsonen, årets priser kåres, festkasserne bruges på årsauktionen, og sæsonen bliver stående, til admin starter en ny.</p></div></section>`;
 }
 
 /* =================== IN-APP DIALOGS =================== */
