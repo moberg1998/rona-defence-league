@@ -2340,12 +2340,20 @@ async function changePassword(){
     document.getElementById('pwCur').value=''; document.getElementById('pwNew').value=''; document.getElementById('pwNew2').value='';
   }catch(e){ errEl.textContent=loginErrText(e); }
 }
+function hasLegacyTaberLog(){ return S.disc.log.some(l=>(l.event==='taber'||l.event==='frikendt')&&l.srcMonth==null); }
+async function purgeLegacyTaberLog(){   // rydder KUN forældede log-poster uden srcMonth (fra før den mærkning fandtes) — rører aldrig bøder eller rene/kort-tal
+  if(!isAdmin())return;
+  confirmModal("Fjern forældede taber-historik-poster uden månedsmærke? De stammer fra en måned, der siden er blevet genberegnet/genåbnet, og hører ikke til nogen aktuel afgørelse. Rører hverken bøder, point eller kort-status.", async ()=>{
+    S.disc.log=S.disc.log.filter(l=>!((l.event==='taber'||l.event==='frikendt')&&l.srcMonth==null));
+    await saveState(); moreView='disc'; renderMore(); toast("Forældede poster fjernet.");
+  }, "Fjern");
+}
 function discBody(){
   return `<div class="paper" style="margin-bottom:14px">
     ${PLAYERS.map(n=>{const d=S.disc.players[n];const ctrl=isAdmin()&&(d.yellow||d.reds>0)?`<div class="btn-row" style="margin-top:8px">${d.yellow?`<button class="chk" onclick="adminClearCard('${n}','yellow')">Fjern gult</button>`:''}${d.reds>0?`<button class="chk" onclick="adminClearCard('${n}','red')">Fjern rødt</button>`:''}</div>`:'';
       return `<div class="sub-row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="nm">${nameOf(n)}</div><div class="desc">${d.yellow?'Gult kort · '+d.streak+'/4 rene':d.reds?d.reds+' røde kort i alt':'Ren'}</div></div>
       <span style="font-size:20px">${cardIcon(d)}</span></div>${ctrl}</div>`;}).join('')}</div>
-    <div class="eyebrow">Historik</div><div class="paper">${S.disc.log.length?S.disc.log.slice().reverse().map(e=>`<div class="sub-row"><div><div class="nm" style="font-size:14px">${nameOf(e.player)} · ${e.event}</div><div class="desc">${e.reason}</div></div><span class="badge b-wait" style="${e.event==='rødt'?'color:var(--red)':e.event==='gult'?'color:var(--amber-soft)':''}">${e.event}</span></div>`).join(''):'<div class="empty">Ingen kort givet endnu.</div>'}</div></section>`;
+    <div class="eyebrow">Historik</div>${isAdmin()&&hasLegacyTaberLog()?`<div class="btn-row" style="margin-bottom:10px"><button class="btn btn-ghost" onclick="purgeLegacyTaberLog()">Ryd forældede taber-poster</button></div>`:''}<div class="paper">${S.disc.log.length?S.disc.log.slice().reverse().map(e=>`<div class="sub-row"><div><div class="nm" style="font-size:14px">${nameOf(e.player)} · ${e.event}</div><div class="desc">${e.reason}</div></div><span class="badge b-wait" style="${e.event==='rødt'?'color:var(--red)':e.event==='gult'?'color:var(--amber-soft)':''}">${e.event}</span></div>`).join(''):'<div class="empty">Ingen kort givet endnu.</div>'}</div></section>`;
 }
 async function adminClearCard(n,type){
   if(!isAdmin())return; const p=S.disc.players[n];
