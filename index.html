@@ -931,6 +931,13 @@ function descOf(){
   // winner-type
   if(side==="home")return m.home; if(side==="away")return m.away; return side||"";
 }
+// Kampen skal ALTID fremgå af det, de andre ser — ikke kun selve spillet (fx "2 + U4.5 mål" uden
+// at vide hvilken kamp). Sætter kampnavnet foran selve spil-teksten, uanset marked/manuel/skriv-selv.
+function fullDescOf(betDesc){
+  const m=F.match; if(!m)return betDesc;
+  const matchLabel=m.home&&m.away?`${m.home} - ${m.away}`:(m.home||m.away||'');
+  return matchLabel?`${matchLabel}: ${betDesc}`:betDesc;
+}
 function formReady(){ if(!(F.match&&F.market&&F.side&&parseFloat(F.odds)>1))return false; if(needsLine(F.market)&&F.line==="")return false; if(F.market==="Over/Under"&&!F.ouUnit)return false; return true; }
 function needsLine(mk){ return mk&&(mk.startsWith("Over/Under")||mk.includes("handicap")||mk==="Handicap"); }
 function sideOptions(mk,m){
@@ -1230,7 +1237,7 @@ function renderMkExtra(){
   const li=document.getElementById('lineInp'); if(li)li.addEventListener('input',e=>{F.line=e.target.value;upd();});
   document.getElementById('oddsInp').addEventListener('input',e=>{F.odds=e.target.value;upd();});
   document.getElementById('submitPick').addEventListener('click',submitPick);
-  function upd(){const d=descOf();document.getElementById('descPrev').textContent=d?('→ '+d):'';document.getElementById('submitPick').disabled=!formReady();}
+  function upd(){const d=descOf();document.getElementById('descPrev').textContent=d?('→ '+fullDescOf(d)):'';document.getElementById('submitPick').disabled=!formReady();}
   upd();
 }
 async function submitPick(){
@@ -1239,9 +1246,10 @@ async function submitPick(){
   else if(!formReady())return;
   const bt = free?"Andet" : F.market==="Over/Under"?("Over/Under "+F.ouUnit) : (BETTYPE[F.market]||"Andet");
   const r=openRound();
+  const betDesc = free?(F.free||'').trim():descOf();
   r.picks[S.user]={ sport:m.sport, league:m.league, home:m.home, away:m.away,
     market: free?"Andet":F.market, betType: bt, side: free?"-":F.side, line: free?"":F.line, ouUnit: F.ouUnit||"",
-    desc: free?(F.free||'').trim():descOf(), odds:parseFloat(F.odds), hit:null, closing:null };
+    desc: fullDescOf(betDesc), odds:parseFloat(F.odds), hit:null, closing:null };
   resetF(); await saveRoundMerge(r.id, {picks:{[S.user]: r.picks[S.user]}}); renderAll(); go('round');
 }
 async function clearPick(){ const r=openRound(); delete r.picks[S.user]; resetF(); await saveRoundMerge(r.id, {picks:{[S.user]: FV.delete()}}); renderRound(); }
