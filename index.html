@@ -1794,7 +1794,7 @@ function renderMoney(){
       ${PLAYERS.map(n=>{const fines=unpaidFinesFor(n,key);const extra=fines.reduce((a,f)=>a+f.amount,0);const due=fee()+extra;const paid=S.payments[key]['fee_'+n];
         const finesTxt=fines.map(f=>f.amount+' kr '+(f.kind==='rødt'?'rødt kort':f.kind==='ferie'?'feriegebyr':f.kind==='buyin'?'buy-in':'taber')).join(' + ');
         return `<div class="pay-row"><div><span class="nm">${nameOf(n)}</span>${extra&&!paid?`<div style="font-size:12px;color:var(--ink-soft);margin-top:1px">+ ${finesTxt}</div>`:''}</div><button class="chk ${paid?'paid':''}" ${isAdmin()?'':'disabled'} onclick="togglePay('${key}','${n}')">${paid?'Betalt':'Mangler · '+due+' kr'}</button></div>`;}).join('')}
-      ${S.payments[key].closed?`<div class="status-line" style="padding:10px 16px">Måned lukket ✓${mlTxt?' · taber: '+mlTxt:''}</div>${isAdmin()?`<div class="pad" style="padding-top:0"><button class="btn btn-ghost-d" onclick="reopenMonth('${key}')">Genåbn måned (fjern taber-bøde)</button></div>`:''}`
+      ${S.payments[key].closed?`<div class="status-line" style="padding:10px 16px">Måned lukket ✓${mlTxt?' · taber: '+mlTxt:''}</div>${isAdmin()?`<div class="pad" style="padding-top:0"><button class="btn btn-ghost" onclick="reopenMonth('${key}')">Genåbn måned (fjern taber-bøde)</button></div>`:''}`
         :isAdmin()?`<div class="pad"><p style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">${mlTxt?`Lukker du måneden nu: taber bliver <b>${mlTxt}</b>. `:''}Måneden lukkes ellers automatisk, når begge runder er afgjort — taberens bøde lægges oven i den kommende betaling.</p><button class="btn btn-dark" onclick="closeMonth('${key}')">Luk måned & afgør taber</button></div>`:''}</div>`;}).join('')}
     </section>`;
 }
@@ -1843,7 +1843,9 @@ async function closeMonth(key){ if(!isAdmin())return; const[yy,mm]=key.split('-'
 async function reopenMonth(key){ if(!isAdmin())return; const[yy,mm]=key.split('-');
   confirmModal("Genåbn "+MONTHS_DA[+mm-1]+" "+yy+"? Månedens taber-bøde fjernes, og måneden bliver åben for flere runder igen — brug det kun hvis den blev lukket for tidligt.", async ()=>{
     S.fines=S.fines.filter(f=>!(f.kind==='taber'&&f.srcMonth===key));
-    S.disc.log=S.disc.log.filter(l=>!((l.event==='taber'||l.event==='frikendt')&&l.srcMonth===key));
+    // l.srcMonth==null fanger også ældre log-poster fra FØR srcMonth-mærkningen blev indført —
+    // de kan kun stamme fra netop den her (første) månedslukning, så det er trygt at rydde dem med.
+    S.disc.log=S.disc.log.filter(l=>!((l.event==='taber'||l.event==='frikendt')&&(l.srcMonth===key||l.srcMonth==null)));
     S.payments[key]||={}; delete S.payments[key].closed;
     await saveState(); renderAll(); go('money'); toast("Måneden er genåbnet.");
   }, "Genåbn måneden");
@@ -2022,13 +2024,18 @@ function expAchievements(name){
   let king=false; const byM={}; settledRounds().forEach(r=>(byM[r.date.slice(0,7)]||=[]).push(r));
   Object.values(byM).forEach(rs=>{ const {raw,elig}=monthPoints(rs); if(elig.length<2)return; const top=Math.max(...elig.map(n=>raw[n])); if(elig.includes(name)&&raw[name]===top)king=true; });
   const reds=(S.disc.players[name]||{}).reds||0;
+  let perfectMonth=false;
+  Object.values(byM).forEach(rs=>{ if(rs.length<4)return;   // "en hel måned" = mindst 4 lørdage
+    const mine=rs.map(r=>r.picks[name]).filter(p=>isCounting(p));
+    if(mine.length===rs.length && mine.every(p=>p.hit)) perfectMonth=true; });
   return [
-    {key:'big3', name:'Longshot', desc:'Ramt et odds over 3,0', exp:20, got:ps.some(p=>p.hit&&p.odds>=3)},
-    {key:'big5', name:'Gigantdræber', desc:'Ramt et odds over 5,0', exp:40, got:ps.some(p=>p.hit&&p.odds>=5)},
+    {key:'big3', name:'Longshot', desc:'Ramt et odds over 2,25', exp:20, got:ps.some(p=>p.hit&&p.odds>=2.25)},
+    {key:'big5', name:'Gigantdræber', desc:'Ramt et odds over 3,0', exp:40, got:ps.some(p=>p.hit&&p.odds>=3)},
     {key:'sharp', name:'Skarpskytte', desc:'Ramt 10 spil i alt', exp:20, got:hits>=10},
     {key:'value', name:'Værdijæger', desc:'Sæson-TB% over 130% (min. 8 spil)', exp:25, got:st.picks>=8&&st.tb>=130},
     {key:'king', name:'Måneds-konge', desc:'Vundet mindst én måned', exp:25, got:king},
-    {key:'disc', name:'Disciplineret', desc:'Spillet 10 runder uden et rødt kort', exp:20, got:ps.length>=10&&reds===0}
+    {key:'disc', name:'Disciplineret', desc:'Spillet 10 runder uden et rødt kort', exp:20, got:ps.length>=10&&reds===0},
+    {key:'perfectmonth', name:'Perfekt måned', desc:'Ramt alle spil i en hel måned i træk (mindst 4 runder)', exp:35, got:perfectMonth}
   ];
 }
 function spinsAvailable(name){ return Math.max(0, Math.floor(expFor(name)/EXP_PER_SPIN) - (S.power.spun[name]||0)); }
