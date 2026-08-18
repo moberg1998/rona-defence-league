@@ -1032,15 +1032,16 @@ function renderRound(){
       return `<div class="sub-row"><div><div class="nm">${nameOf(n)}${n===me?' (dig)':''}</div>${ab?'<div class="desc">Afbud / fravær</div>':p?`<div class="desc">${p.desc} · ${p.sport}</div>`:'<div class="desc">—</div>'}</div>
       <div style="display:flex;align-items:center;gap:8px">${ab?'<span class="badge b-wait" style="color:var(--amber-soft)">afbud</span>':p?`<span class="badge b-odds">${p.odds.toFixed(2)}</span>`:'<span class="badge b-wait">mangler</span>'}
       ${canToggle&&!p?`<button class="chk" style="padding:4px 10px" onclick="toggleAfbud('${n}')">${ab?'tilbage':'afbud'}</button>`:''}</div></div>`;}).join('')}</div>`;
-  // jokerben — kun admin, kun før runden er afgjort
-  if(isAdmin()&&r.status!=='settled'){
+  // jokerben — synlig for ALLE (ikke kun admin) når den er sat, så alle kan se spillet er placeret.
+  // Kun selve tilføj/rediger-formularen er admin-only.
+  if(r.status!=='settled'){
     const jp=r.picks[JOKER_KEY];
     if(jp){
       body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben er sat</div>
         <div style="font-family:'Oswald';font-weight:600;font-size:16px">${jp.desc} <span class="chip">${jp.sport}</span></div>
         <div style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft);margin-top:4px">odds ${jp.odds.toFixed(2)}</div>
-        <p style="font-size:11px;color:var(--ink-soft);margin-top:8px">Ret eller fjern den under »Rediger runder & kuponer« i adminpanelet.</p></div>`;
-    } else {
+        ${isAdmin()?'<p style="font-size:11px;color:var(--ink-soft);margin-top:8px">Ret eller fjern den under »Rediger runder & kuponer« i adminpanelet.</p>':''}</div>`;
+    } else if(isAdmin()){
       const winners=lastRoundWinner();
       body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben</div>
         <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">${winners.length?'Sidste rundes vinder: <b>'+winners.map(nameOf).join(' & ')+'</b> — kan foreslå et jokerben i Messenger-chatten.':'Ingen afgjort runde endnu at udpege en vinder fra.'} Kræver kun at overtale én af de to andre (begge skal sige nej for at afvise). Godkendt? Så tilføjer du det her — det tæller kun med på selve kuponen, aldrig i de personlige point.</p>
