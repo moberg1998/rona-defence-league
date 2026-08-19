@@ -1029,9 +1029,9 @@ function renderRound(){
   body+=`<div class="paper" style="margin-bottom:14px">
     <div class="status-line" style="padding:12px 16px 6px">Indsendt: ${subs}/${PLAYERS.length} ${r.status!=='open'?'· LÅST':''}</div>
     ${PLAYERS.map(n=>{const p=r.picks[n];const ab=r.absent.includes(n);const canToggle=r.status==='open'&&(isAdmin()||n===S.user);
-      return `<div class="sub-row"><div><div class="nm">${nameOf(n)}${n===me?' (dig)':''}</div>${ab?'<div class="desc">Afbud / fravær</div>':p?`<div class="desc">${p.desc} · ${p.sport}</div>`:'<div class="desc">—</div>'}</div>
+      return `<div class="sub-row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="nm">${nameOf(n)}${n===me?' (dig)':''}</div>${ab?'<div class="desc">Afbud / fravær</div>':p?`<div class="desc">${p.desc} · ${p.sport}</div>`:'<div class="desc">—</div>'}</div>
       <div style="display:flex;align-items:center;gap:8px">${ab?'<span class="badge b-wait" style="color:var(--amber-soft)">afbud</span>':p?`<span class="badge b-odds">${p.odds.toFixed(2)}</span>`:'<span class="badge b-wait">mangler</span>'}
-      ${canToggle&&!p?`<button class="chk" style="padding:4px 10px" onclick="toggleAfbud('${n}')">${ab?'tilbage':'afbud'}</button>`:''}</div></div>`;}).join('')}</div>`;
+      ${canToggle&&!p?`<button class="chk" style="padding:4px 10px" onclick="toggleAfbud('${n}')">${ab?'tilbage':'afbud'}</button>`:''}</div></div>${p?reactionBar(r,n):''}</div>`;}).join('')}</div>`;
   // jokerben — synlig for ALLE (ikke kun admin) når den er sat, så alle kan se spillet er placeret.
   // Kun selve tilføj/rediger-formularen er admin-only.
   if(r.status!=='settled'){
@@ -1040,6 +1040,7 @@ function renderRound(){
       body+=`<div class="paper pad" style="margin-bottom:14px"><div class="admin-note">🃏 Jokerben er sat</div>
         <div style="font-family:'Oswald';font-weight:600;font-size:16px">${jp.desc} <span class="chip">${jp.sport}</span></div>
         <div style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft);margin-top:4px">odds ${jp.odds.toFixed(2)}</div>
+        ${reactionBar(r,JOKER_KEY)}
         ${isAdmin()?'<p style="font-size:11px;color:var(--ink-soft);margin-top:8px">Ret eller fjern den under »Rediger runder & kuponer« i adminpanelet.</p>':''}</div>`;
     } else if(isAdmin()){
       const winners=lastRoundWinner();
@@ -1267,6 +1268,27 @@ async function clearPick(){
 async function createRound(inputId){
   const d=document.getElementById(inputId||'newRoundDate').value; if(!d)return;
   const nr={id:d,date:d,status:'open',picks:{},absent:[]}; S.rounds.push(nr); await saveRound(nr); renderAll(); go('round');
+}
+// Reaktioner på hinandens spil (og jokerben) — rent sjovt sidelag, ingen point/effekt.
+// Gemt pr. runde som r.reactions[ejerNøgle][emoji] = [navne der har reageret].
+const REACTION_EMOJIS=['🔥','😂','💀','👍'];
+function reactionBar(r,ownerKey){
+  const reax=(r.reactions||{})[ownerKey]||{}; const me=S.user;
+  return `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${REACTION_EMOJIS.map(em=>{
+    const list=reax[em]||[]; const mine=list.includes(me); const n=list.length;
+    return `<button onclick="toggleReaction('${ownerKey}','${em}')" style="font-size:13px;padding:3px 9px;border-radius:20px;cursor:pointer;border:1px solid ${mine?'var(--amber)':'var(--paper-line)'};background:${mine?'rgba(243,169,59,.18)':'transparent'};color:var(--ink)">${em}${n?' '+n:''}</button>`;
+  }).join('')}</div>`;
+}
+async function toggleReaction(ownerKey,emoji){
+  const r=openRound(); if(!r)return; const me=S.user;
+  r.reactions=r.reactions||{}; r.reactions[ownerKey]=r.reactions[ownerKey]||{};
+  const prevList=r.reactions[ownerKey][emoji]||[];
+  const has=prevList.includes(me);
+  const newList=has?prevList.filter(x=>x!==me):[...prevList,me];
+  if(newList.length) r.reactions[ownerKey][emoji]=newList; else delete r.reactions[ownerKey][emoji];
+  const saveRes=await saveRoundMerge(r.id, {reactions:{[ownerKey]:{[emoji]: newList.length?newList:FV.delete()}}});
+  if(!saveRes.ok){ if(prevList.length) r.reactions[ownerKey][emoji]=prevList; else delete r.reactions[ownerKey][emoji]; toast("⚠️ Kunne ikke gemme reaktionen ("+saveRes.err+")."); }
+  renderRound();
 }
 async function toggleAfbud(name){
   const r=openRound(); if(!r||r.status!=='open')return;
