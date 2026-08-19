@@ -1064,6 +1064,7 @@ function renderRound(){
   el.innerHTML=`<section><div class="eyebrow">Runde ${roundNo(r)} · ${r.status==='open'?deadlineText(r.date):fmtDate(r.date)}</div>${body}</section>`;
   if(r.status==='open'&&!myPick)wireSubmitForm();
   if(isAdmin()&&r.status!=='settled'&&!r.picks[JOKER_KEY]&&jokerFormOpen)wireJokerForm();
+  wireReactions();
 }
 let jokerFormOpen=false;
 function toggleJokerForm(){ jokerFormOpen=!jokerFormOpen; renderRound(); }
@@ -1271,13 +1272,29 @@ async function createRound(inputId){
 }
 // Reaktioner på hinandens spil (og jokerben) — rent sjovt sidelag, ingen point/effekt.
 // Gemt pr. runde som r.reactions[ejerNøgle][emoji] = [navne der har reageret].
-const REACTION_EMOJIS=['🔥','😂','💀','👍'];
+const REACTION_EMOJIS=['🔥','😂','💀','👍','💩'];
 function reactionBar(r,ownerKey){
-  const reax=(r.reactions||{})[ownerKey]||{}; const me=S.user;
+  const reax=(r.reactions||{})[ownerKey]||{}; const me=S.user; const ownerAttr=String(ownerKey).replace(/"/g,'&quot;');
   return `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${REACTION_EMOJIS.map(em=>{
     const list=reax[em]||[]; const mine=list.includes(me); const n=list.length;
-    return `<button onclick="toggleReaction('${ownerKey}','${em}')" style="font-size:13px;padding:3px 9px;border-radius:20px;cursor:pointer;border:1px solid ${mine?'var(--amber)':'var(--paper-line)'};background:${mine?'rgba(243,169,59,.18)':'transparent'};color:var(--ink)">${em}${n?' '+n:''}</button>`;
+    return `<button class="react-btn" data-owner="${ownerAttr}" data-emoji="${em}" style="font-size:13px;padding:3px 9px;border-radius:20px;cursor:pointer;border:1px solid ${mine?'var(--amber)':'var(--paper-line)'};background:${mine?'rgba(243,169,59,.18)':'transparent'};color:var(--ink)">${em}${n?' '+n:''}</button>`;
   }).join('')}</div>`;
+}
+// Tryk = skift egen reaktion. Hold nede (~400ms) = se hvem der har reageret, i stedet for at skifte.
+function wireReactions(){
+  document.querySelectorAll('.react-btn').forEach(btn=>{
+    let timer=null, held=false; const owner=btn.dataset.owner, emoji=btn.dataset.emoji;
+    const start=()=>{ held=false; timer=setTimeout(()=>{ held=true;
+      const r=openRound(); const list=(r&&r.reactions&&r.reactions[owner]&&r.reactions[owner][emoji])||[];
+      toast(list.length? emoji+' '+list.map(nameOf).join(', ') : 'Ingen har reageret endnu.');
+    },400); };
+    const cancel=()=>clearTimeout(timer);
+    const end=()=>{ clearTimeout(timer); if(!held) toggleReaction(owner,emoji); };
+    btn.addEventListener('pointerdown', start);
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointerleave', cancel);
+    btn.addEventListener('pointercancel', cancel);
+  });
 }
 async function toggleReaction(ownerKey,emoji){
   const r=openRound(); if(!r)return; const me=S.user;
