@@ -105,7 +105,9 @@ async function main() {
 
   if (openRound) {
     const deadline = DateTime.fromISO(`${openRound.date}T10:00:00`, { zone: TZ });
-    const reminderAt = deadline.minus({ hours: 24 });
+    // Runden åbner altid lørdag (deadline kl. 10) — påmindelsen sendes nu fast fredag kl. 08:00,
+    // ikke længere "24 timer før deadline" (som gav fredag kl. 10).
+    const reminderAt = deadline.minus({ days: 1 }).set({ hour: 8, minute: 0, second: 0, millisecond: 0 });
 
     if (now >= reminderAt && now < deadline && tracker.roundReminderSent !== openRound.id) {
       const missing = players.filter(n => !(openRound.picks || {})[n] && !(openRound.absent || []).includes(n));
